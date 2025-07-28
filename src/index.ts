@@ -9,7 +9,7 @@ import geminiRouter from './routes/gemini';
 import storiesRouter from './routes/stories';
 import elevenlabsRouter from './routes/elevenlabs';
 import supportRouter from './routes/support';
-import { connectToDatabase } from '../src/db';
+import { connectToDatabase } from './db';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
