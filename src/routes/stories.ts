@@ -6,8 +6,8 @@ const router = Router();
 
 router.post('/', createStory);
 router.get('/public-paginated', getPaginatedStories);
-router.get('/:id', getStoryById);
 router.get('/user/:userId', getUserStories);
+router.get('/:id', getStoryById);
 router.post('/:id/chapter', generateChapter);
 router.delete('/:id', deleteStory);
 
