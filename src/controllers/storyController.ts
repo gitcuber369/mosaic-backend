@@ -227,21 +227,34 @@ export async function createStory(req: Request, res: Response) {
 
 export async function getUserStories(req: Request, res: Response) {
   try {
-    const { userId } = req.query;
+    console.log('🔍 getUserStories called with params:', req.params);
+    console.log('🔍 getUserStories called with query:', req.query);
+    
+    const { userId } = req.params;
     if (!userId) return res.status(400).json({ error: 'userId required' });
+    
+    console.log('🔍 Looking for stories with userId:', userId);
     const stories = getStoriesCollection();
     const userStories = await stories.find({ userId: new ObjectId(userId as string) }).sort({ createdAt: -1 }).toArray();
+    
+    console.log('✅ Found stories:', userStories.length);
     res.status(200).json(userStories);
   } catch (err) {
+    console.error('❌ Error in getUserStories:', err);
     res.status(500).json({ error: 'Failed to fetch stories', details: err });
   }
 }
 
 export async function getStoryById(req: Request, res: Response) {
   try {
+    console.log('🔍 getStoryById called with params:', req.params);
+    console.log('🔍 getStoryById called with query:', req.query);
+    
     const { id } = req.params;
     const userId = req.query.userId || req.headers['x-user-id'];
     if (!id) return res.status(400).json({ error: 'id required' });
+    
+    console.log('🔍 Looking for story with id:', id);
     const stories = getStoriesCollection();
     const story = await stories.findOne({ _id: new ObjectId(id) });
     if (!story) return res.status(404).json({ error: 'Story not found' });
