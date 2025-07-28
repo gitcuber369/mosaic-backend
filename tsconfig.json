@@ -1,18 +1,21 @@
 {
   "compilerOptions": {
+    // Environment setup & latest features
     "lib": ["ESNext"],
     "target": "ESNext",
-    "module": "Preserve",
+    "module": "ESNext",
     "moduleDetection": "force",
     "jsx": "react-jsx",
     "allowJs": true,
-    "rootDir": "src",                   // Include index.ts and src/
+    "rootDir": "src",
     "outDir": "dist",
 
+    // Bundler mode
     "moduleResolution": "bundler",
     "verbatimModuleSyntax": true,
-    "noEmit": true,                   // Emit compiled JS files ✅
+    "noEmit": false, // Changed to false to emit files for deployment
 
+    // Best practices
     "strict": true,
     "skipLibCheck": true,
     "noFallthroughCasesInSwitch": true,
@@ -20,10 +23,11 @@
     "noImplicitOverride": true,
     "esModuleInterop": true,
 
+    // Some stricter flags (disabled by default)
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false
   },
   "include": ["src/**/*"],
-  "exclude": ["index.ts", "node_modules", "dist"]
+  "exclude": ["node_modules", "dist"]
 }
