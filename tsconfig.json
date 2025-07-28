@@ -1,33 +1,18 @@
 {
   "compilerOptions": {
-    // Environment setup & latest features
-    "lib": ["ESNext"],
-    "target": "ESNext",
-    "module": "ESNext",
-    "moduleDetection": "force",
-    "jsx": "react-jsx",
-    "allowJs": true,
-    "rootDir": "src",
-    "outDir": "dist",
-
-    // Bundler mode
-    "moduleResolution": "bundler",
-    "verbatimModuleSyntax": true,
-    "noEmit": false, // Changed to false to emit files for deployment
-
-    // Best practices
-    "strict": true,
+    "target": "ES2020",                       // Modern JS support
+    "module": "ESNext",                       // Required for ESM
+    "moduleResolution": "node",               // Required for resolving node_modules
+    "outDir": "dist",                         // Compiled files go here
+    "rootDir": "src",                         // Your source files
+    "esModuleInterop": true,                  // Allows commonjs imports (like express)
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "allowJs": true,                          // Allows importing .js if needed
+    "allowSyntheticDefaultImports": true,
     "skipLibCheck": true,
-    "noFallthroughCasesInSwitch": true,
-    "noUncheckedIndexedAccess": true,
-    "noImplicitOverride": true,
-    "esModuleInterop": true,
-
-    // Some stricter flags (disabled by default)
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
-    "noPropertyAccessFromIndexSignature": false
+    "noImplicitAny": false
   },
-  "include": ["src/**/*"],
+  "include": ["src"],
   "exclude": ["node_modules", "dist"]
 }
