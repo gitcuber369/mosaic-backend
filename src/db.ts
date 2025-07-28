@@ -1,6 +1,6 @@
 import { MongoClient } from 'mongodb';
-import type { User } from './models/user';
-import type { Story } from './models/story';
+import { User } from './models/user';
+import { Story } from './models/story';
 
 const uri = 'mongodb+srv://arpitchaudhary2003:FkynhabsB0KpEJkf@cluster0.n5sh4.mongodb.net/mosaic';
 let client: MongoClient;

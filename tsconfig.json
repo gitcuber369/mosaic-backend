@@ -1,18 +1,22 @@
 {
   "compilerOptions": {
-    "target": "ES2020",                       // Modern JS support
-    "module": "ESNext",                       // Required for ESM
-    "moduleResolution": "node",               // Required for resolving node_modules
-    "outDir": "dist",                         // Compiled files go here
-    "rootDir": "src",                         // Your source files
-    "esModuleInterop": true,                  // Allows commonjs imports (like express)
+    // Language features
+    "target": "ES2020",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+
+    // Path setup
+    "rootDir": "./src",
+    "outDir": "./dist",
+
+    // Compatibility
+    "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "allowJs": true,                          // Allows importing .js if needed
-    "allowSyntheticDefaultImports": true,
-    "skipLibCheck": true,
-    "noImplicitAny": false
+
+    // Dev options
+    "strict": true,
+    "skipLibCheck": true
   },
-  "include": ["src"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["src"]
 }

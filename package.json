@@ -1,37 +1,37 @@
 {
   "name": "backend",
-  "module": "dist/index.js",
-  "type": "module",
-  "private": true,
+  "version": "1.0.0",
+  "description": "Mosaic Backend API",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "nodemon --exec bun run index.ts",
-    "build": "tsc",
+    "dev": "ts-node src/index.ts",
     "start": "node dist/index.js",
-    "start:dev": "bun run index.ts"
+    "build": "tsc"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@elevenlabs/elevenlabs-js": "^2.7.0",
+    "@google/genai": "^1.11.0",
+    "axios": "^1.11.0",
+    "cloudinary": "^2.7.0",
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0",
+    "google-auth-library": "^10.2.0",
+    "jsonwebtoken": "^9.0.2",
+    "mime": "^4.0.7",
+    "mongodb": "^6.18.0",
+    "nodemailer": "^7.0.5",
+    "nodemon": "^3.1.10",
+    "openai": "^5.10.2",
+    "ts-node-dev": "^2.0.0"
   },
   "devDependencies": {
-    "@types/bun": "latest",
-    "nodemon": "^3.1.10"
-  },
-  "peerDependencies": {
-    "typescript": "^5.8.3"
-  },
-  "dependencies": {
-    "@elevenlabs/elevenlabs-js": "^2.6.0",
-    "@google/genai": "^1.8.0",
     "@types/express": "^5.0.3",
-    "@types/node": "^24.0.12",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^24.1.0",
     "@types/nodemailer": "^6.4.17",
-    "axios": "^1.6.0",
-    "cloudinary": "^2.7.0",
-    "dotenv": "^17.1.0",
-    "express": "^5.1.0",
-    "google-auth-library": "^10.1.0",
-    "mime": "^4.0.7",
-    "mongodb": "^6.17.0",
-    "nodemailer": "^7.0.5",
-    "openai": "^5.8.3",
-    "ts-node-dev": "^2.0.0"
+    "typescript": "^5.8.3"
   }
 }

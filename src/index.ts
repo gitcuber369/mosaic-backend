@@ -1,7 +1,10 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 import express from 'express';
 import { json, raw } from 'express';
 import usersRouter from './routes/users';
-import exampleRouter from './routes/example'
+import exampleRouter from './routes/example';
 import geminiRouter from './routes/gemini';
 import storiesRouter from './routes/stories';
 import elevenlabsRouter from './routes/elevenlabs';

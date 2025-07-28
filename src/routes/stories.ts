@@ -5,10 +5,10 @@ import { getStoriesCollection } from '../db';
 const router = Router();
 
 router.post('/', createStory);
-router.get('/user', getUserStories);
 router.get('/public-paginated', getPaginatedStories);
 router.get('/:id', getStoryById);
-router.post('/:id/generate-chapter', generateChapter);
+router.get('/user/:userId', getUserStories);
+router.post('/:id/chapter', generateChapter);
 router.delete('/:id', deleteStory);
 
 export default router; 
