@@ -7,7 +7,7 @@
 
     // Path setup
     "rootDir": "src",
-    "outDir": "dist",
+    "outDir": "src/dist",
 
     // Compatibility
     "esModuleInterop": true,
