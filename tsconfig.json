@@ -6,8 +6,8 @@
     "moduleResolution": "node",
 
     // Path setup
-    "rootDir": "./src",
-    "outDir": "./dist",
+    "rootDir": "src",
+    "outDir": "dist",
 
     // Compatibility
     "esModuleInterop": true,
