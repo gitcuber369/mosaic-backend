@@ -207,6 +207,10 @@ export async function deductListenCreditForChapter(req: Request, res: Response) 
       }
       userId = user._id;
     }
+    // Ensure userId is always an ObjectId
+    if (typeof userId === 'string') {
+      userId = new ObjectId(userId);
+    }
 
     if (!userId) {
       return res.status(400).json({ error: 'userId or email required' });
@@ -216,16 +220,19 @@ export async function deductListenCreditForChapter(req: Request, res: Response) 
     }
 
     // Fetch user to check listening history
-    const user = await users.findOne({ _id: new ObjectId(userId) });
+    const user = await users.findOne({ _id: userId });
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
+
+    // Debug logs
+    console.log('User:', user);
+    console.log('User credits:', user.storyListenCredits);
 
     // Check if user has already listened to this chapter
     let listenedChapters = user.listenedChapters || [];
     let storyEntry = listenedChapters.find((entry: any) => entry.storyId?.toString() === storyId);
     let alreadyListened = false;
-    
     if (storyEntry) {
       alreadyListened = storyEntry.chapters.includes(chapterIndex);
     }
@@ -243,7 +250,6 @@ export async function deductListenCreditForChapter(req: Request, res: Response) 
     let update: any = {
       $inc: { storyListenCredits: -1 }
     };
-
     if (storyEntry) {
       // Story exists in history, add this chapter to the list
       update.$set = { 
@@ -259,13 +265,17 @@ export async function deductListenCreditForChapter(req: Request, res: Response) 
       };
     }
 
+    // Debug log for update query
+    const updateQuery = {
+      _id: userId,
+      storyListenCredits: { $gt: 0 },
+      ...(storyEntry ? { 'listenedChapters.storyId': new ObjectId(storyId) } : {})
+    };
+    console.log('Update query:', updateQuery);
+
     // Update user with credit deduction and listening history
     const result = await users.findOneAndUpdate(
-      { 
-        _id: new ObjectId(userId), 
-        storyListenCredits: { $gt: 0 },
-        ...(storyEntry ? { 'listenedChapters.storyId': new ObjectId(storyId) } : {})
-      },
+      updateQuery,
       update,
       { returnDocument: 'after' }
     );

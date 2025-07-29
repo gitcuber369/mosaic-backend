@@ -5,6 +5,7 @@
   "main": "src/dist/index.js",
   "scripts": {
     "dev": "ts-node src/index.ts",
+    "dev:watch": "nodemon --exec ts-node src/index.ts",
     "build": "tsc",
     "start": "npm run build && node dist/index.js",
     "start:prod": "npm run build && node dist/index.js"
