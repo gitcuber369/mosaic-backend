@@ -386,6 +386,46 @@ export async function debugUser(req: Request, res: Response) {
   }
 }
 
+// Reset user premium status (for debugging)
+export async function resetUserPremium(req: Request, res: Response) {
+  try {
+    const { email } = req.params;
+    
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    const users = getUsersCollection();
+    const user = await users.findOne({ email });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Reset premium status
+    await users.updateOne(
+      { email },
+      { 
+        $set: { 
+          isPremium: false
+        },
+        $unset: { 
+          premiumExpiresAt: "",
+          stripeSubscriptionId: ""
+        }
+      }
+    );
+
+    res.json({ 
+      message: 'User premium status reset successfully',
+      email: email
+    });
+  } catch (error) {
+    console.error('Error resetting user premium:', error);
+    res.status(500).json({ error: 'Failed to reset user premium' });
+  }
+}
+
 export async function getSubscriptionStatus(req: Request, res: Response) {
   try {
     const { email } = req.params;

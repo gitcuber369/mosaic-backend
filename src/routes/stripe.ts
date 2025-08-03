@@ -5,7 +5,8 @@ import {
   cancelSubscription, 
   getSubscriptionStatus,
   createSubscription,
-  debugUser
+  debugUser,
+  resetUserPremium
 } from '../controllers/stripeController';
 
 const router = express.Router();
@@ -27,5 +28,8 @@ router.get('/subscription-status/:email', getSubscriptionStatus);
 
 // Debug user data
 router.get('/debug-user/:email', debugUser);
+
+// Reset user premium status
+router.post('/reset-premium/:email', resetUserPremium);
 
 export default router; 
