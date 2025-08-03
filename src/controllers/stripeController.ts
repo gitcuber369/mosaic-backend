@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { stripe, STRIPE_PRODUCTS } from '../stripeConfig';
+import { stripe, STRIPE_PRODUCTS, STRIPE_WEBHOOK_SECRET } from '../stripeConfig';
 import { getUsersCollection } from '../db';
 import { ObjectId } from 'mongodb';
 
@@ -197,10 +197,12 @@ export async function handleStripeWebhook(req: Request, res: Response) {
       event = stripe.webhooks.constructEvent(
         req.body,
         sig,
-        process.env.STRIPE_WEBHOOK_SECRET || 'whsec_your_webhook_secret_here'
+        STRIPE_WEBHOOK_SECRET
       );
     } catch (err) {
       console.error('Webhook signature verification failed:', err);
+      console.error('Webhook secret being used:', STRIPE_WEBHOOK_SECRET);
+      console.error('Signature header:', sig);
       return res.status(400).json({ error: 'Invalid signature' });
     }
   }
@@ -271,6 +273,11 @@ export async function handleStripeWebhook(req: Request, res: Response) {
             if (product) {
               const user = await users.findOne({ email: paymentEmail });
               if (user?.stripeCustomerId) {
+                // Attach the payment method to the customer first
+                await stripe.paymentMethods.attach(paymentIntent.payment_method, {
+                  customer: user.stripeCustomerId,
+                });
+
                 const subscription = await stripe.subscriptions.create({
                   customer: user.stripeCustomerId,
                   items: [{ price: product.priceId }],
@@ -297,6 +304,10 @@ export async function handleStripeWebhook(req: Request, res: Response) {
             }
           } catch (error) {
             console.error('Error creating subscription from webhook:', error);
+            console.error('Payment Intent ID:', paymentIntent.id);
+            console.error('Payment Method ID:', paymentIntent.payment_method);
+            const user = await users.findOne({ email: paymentEmail });
+            console.error('Customer ID:', user?.stripeCustomerId);
           }
         }
         break;
