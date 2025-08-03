@@ -4,7 +4,8 @@ import {
   handleStripeWebhook, 
   cancelSubscription, 
   getSubscriptionStatus,
-  createSubscription
+  createSubscription,
+  debugUser
 } from '../controllers/stripeController';
 
 const router = express.Router();
@@ -23,5 +24,8 @@ router.post('/cancel-subscription', cancelSubscription);
 
 // Get subscription status
 router.get('/subscription-status/:email', getSubscriptionStatus);
+
+// Debug user data
+router.get('/debug-user/:email', debugUser);
 
 export default router; 

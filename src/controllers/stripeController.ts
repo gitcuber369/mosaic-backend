@@ -24,8 +24,35 @@ export async function createPaymentIntent(req: Request, res: Response) {
     let customerId: string;
     
     if (user?.stripeCustomerId) {
-      customerId = user.stripeCustomerId;
+      console.log('Found existing stripeCustomerId:', user.stripeCustomerId);
+      // Verify the customer still exists in Stripe
+      try {
+        await stripe.customers.retrieve(user.stripeCustomerId);
+        customerId = user.stripeCustomerId;
+        console.log('Customer exists in Stripe, using existing ID:', customerId);
+      } catch (error) {
+        console.log('Customer not found in Stripe, creating new one:', user.stripeCustomerId);
+        console.log('Error details:', error);
+        // Customer doesn't exist in Stripe, create a new one
+        const customer = await stripe.customers.create({
+          email,
+          metadata: {
+            userId: user._id?.toString() || ''
+          }
+        });
+        
+        customerId = customer.id;
+        console.log('Created new customer:', customerId);
+        
+        // Update user with new Stripe customer ID
+        await users.updateOne(
+          { _id: user._id },
+          { $set: { stripeCustomerId: customerId } }
+        );
+        console.log('Updated user with new customer ID');
+      }
     } else {
+      console.log('No existing stripeCustomerId, creating new customer');
       // Create new Stripe customer
       const customer = await stripe.customers.create({
         email,
@@ -35,6 +62,7 @@ export async function createPaymentIntent(req: Request, res: Response) {
       });
       
       customerId = customer.id;
+      console.log('Created new customer:', customerId);
       
       // Update user with Stripe customer ID
       if (user) {
@@ -42,9 +70,11 @@ export async function createPaymentIntent(req: Request, res: Response) {
           { _id: user._id },
           { $set: { stripeCustomerId: customerId } }
         );
+        console.log('Updated user with new customer ID');
       }
     }
 
+    console.log('Creating payment intent with customer:', customerId);
     // Create payment intent for immediate payment
     const paymentIntent = await stripe.paymentIntents.create({
       amount: product.price,
@@ -69,7 +99,11 @@ export async function createPaymentIntent(req: Request, res: Response) {
     });
   } catch (error) {
     console.error('Error creating payment intent:', error);
-    res.status(500).json({ error: 'Failed to create payment intent' });
+    if (error instanceof Error) {
+      res.status(500).json({ error: `Failed to create payment intent: ${error.message}` });
+    } else {
+      res.status(500).json({ error: 'Failed to create payment intent' });
+    }
   }
 }
 
@@ -93,6 +127,14 @@ export async function createSubscription(req: Request, res: Response) {
     
     if (!user?.stripeCustomerId) {
       return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    // Verify the customer still exists in Stripe
+    try {
+      await stripe.customers.retrieve(user.stripeCustomerId);
+    } catch (error) {
+      console.log('Customer not found in Stripe during subscription creation:', user.stripeCustomerId);
+      return res.status(404).json({ error: 'Stripe customer not found' });
     }
 
     // Retrieve the completed payment intent
@@ -298,6 +340,52 @@ export async function cancelSubscription(req: Request, res: Response) {
 
 
 // Get subscription status
+// Debug route to check user data
+export async function debugUser(req: Request, res: Response) {
+  try {
+    const { email } = req.params;
+    
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    const users = getUsersCollection();
+    const user = await users.findOne({ email });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Check if customer exists in Stripe
+    let customerExists = false;
+    let customerError = null;
+    
+    if (user.stripeCustomerId) {
+      try {
+        await stripe.customers.retrieve(user.stripeCustomerId);
+        customerExists = true;
+      } catch (error) {
+        customerError = error instanceof Error ? error.message : 'Unknown error';
+      }
+    }
+
+    res.json({
+      user: {
+        email: user.email,
+        stripeCustomerId: user.stripeCustomerId,
+        stripeSubscriptionId: user.stripeSubscriptionId,
+        isPremium: user.isPremium,
+        premiumExpiresAt: user.premiumExpiresAt
+      },
+      stripeCustomerExists: customerExists,
+      customerError: customerError
+    });
+  } catch (error) {
+    console.error('Error debugging user:', error);
+    res.status(500).json({ error: 'Failed to debug user' });
+  }
+}
+
 export async function getSubscriptionStatus(req: Request, res: Response) {
   try {
     const { email } = req.params;
