@@ -6,7 +6,7 @@ export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_51Rrj
 });
 
 // Webhook endpoint secret for verifying webhook signatures
-export const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || 'whsec_your_webhook_secret_here';
+export const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || 'whsec_4cRagVGkMM0ouc1eDL4UMgt5z9Evcbi9';
 
 // Product configurations - Replace with your actual price IDs from Stripe
 export const STRIPE_PRODUCTS = {
