@@ -154,7 +154,7 @@ export async function createSubscription(req: Request, res: Response) {
       }
     });
 
-    // Update user with subscription details and add 30 story listening credits
+    // Update user with subscription details (credits will be added via webhook)
     await users.updateOne(
       { email },
       { 
@@ -162,9 +162,6 @@ export async function createSubscription(req: Request, res: Response) {
           isPremium: true,
           stripeSubscriptionId: subscription.id,
           premiumExpiresAt: new Date((subscription as any).current_period_end * 1000)
-        },
-        $inc: {
-          storyListenCredits: 30
         }
       }
     );
