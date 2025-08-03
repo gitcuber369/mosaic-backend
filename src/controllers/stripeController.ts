@@ -154,7 +154,7 @@ export async function createSubscription(req: Request, res: Response) {
       }
     });
 
-    // Update user with subscription details and add 30 story creation credits
+    // Update user with subscription details and add 30 story listening credits
     await users.updateOne(
       { email },
       { 
@@ -164,7 +164,7 @@ export async function createSubscription(req: Request, res: Response) {
           premiumExpiresAt: new Date((subscription as any).current_period_end * 1000)
         },
         $inc: {
-          storyCreationCredits: 30
+          storyListenCredits: 30
         }
       }
     );
@@ -225,7 +225,7 @@ export async function handleStripeWebhook(req: Request, res: Response) {
                 premiumExpiresAt: new Date(newSubscription.current_period_end * 1000)
               },
               $inc: {
-                storyCreationCredits: 30
+                storyListenCredits: 30
               }
             }
           );
@@ -254,7 +254,7 @@ export async function handleStripeWebhook(req: Request, res: Response) {
                     premiumExpiresAt: new Date(updatedSubscription.current_period_end * 1000)
                   },
                   $inc: {
-                    storyCreationCredits: 30
+                    storyListenCredits: 30
                   }
                 }
               );
@@ -340,7 +340,7 @@ export async function handleStripeWebhook(req: Request, res: Response) {
                       premiumExpiresAt: new Date((subscription as any).current_period_end * 1000)
                     },
                     $inc: {
-                      storyCreationCredits: 30
+                      storyListenCredits: 30
                     }
                   }
                 );
