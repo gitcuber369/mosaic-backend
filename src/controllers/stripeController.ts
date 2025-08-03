@@ -3,7 +3,7 @@ import { stripe, STRIPE_PRODUCTS, STRIPE_WEBHOOK_SECRET } from '../stripeConfig'
 import { getUsersCollection } from '../db';
 import { ObjectId } from 'mongodb';
 
-// Create a payment intent for subscription
+// Create a setup intent for subscription
 export async function createPaymentIntent(req: Request, res: Response) {
   try {
     const { email, planType = 'monthly' } = req.body;
@@ -75,14 +75,11 @@ export async function createPaymentIntent(req: Request, res: Response) {
     }
 
     console.log('Creating payment intent with customer:', customerId);
-    // Create payment intent for immediate payment
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: product.price,
-      currency: 'usd',
+    // Create setup intent for subscription
+    const setupIntent = await stripe.setupIntents.create({
       customer: customerId,
-      automatic_payment_methods: {
-        enabled: true,
-      },
+      payment_method_types: ['card'],
+      usage: 'off_session',
       metadata: {
         email,
         planType,
@@ -90,11 +87,11 @@ export async function createPaymentIntent(req: Request, res: Response) {
       }
     });
 
-    console.log('Payment intent created:', paymentIntent.id);
+    console.log('Setup intent created:', setupIntent.id);
     
     res.json({
-      clientSecret: paymentIntent.client_secret,
-      paymentIntentId: paymentIntent.id,
+      clientSecret: setupIntent.client_secret,
+      setupIntentId: setupIntent.id,
       customerId
     });
   } catch (error) {
@@ -262,36 +259,32 @@ export async function handleStripeWebhook(req: Request, res: Response) {
         }
         break;
 
-      case 'payment_intent.succeeded':
-        const paymentIntent = event.data.object as any;
-        const paymentEmail = paymentIntent.metadata?.email;
+      case 'setup_intent.succeeded':
+        const setupIntent = event.data.object as any;
+        const setupEmail = setupIntent.metadata?.email;
         
-        if (paymentEmail && paymentIntent.metadata?.planType) {
-          // Automatically create subscription when payment succeeds
+        if (setupEmail && setupIntent.metadata?.planType) {
+          // Automatically create subscription when setup succeeds
           try {
-            const product = STRIPE_PRODUCTS[paymentIntent.metadata.planType as keyof typeof STRIPE_PRODUCTS];
+            const product = STRIPE_PRODUCTS[setupIntent.metadata.planType as keyof typeof STRIPE_PRODUCTS];
             if (product) {
-              const user = await users.findOne({ email: paymentEmail });
+              const user = await users.findOne({ email: setupEmail });
               if (user?.stripeCustomerId) {
-                // Attach the payment method to the customer first
-                await stripe.paymentMethods.attach(paymentIntent.payment_method, {
-                  customer: user.stripeCustomerId,
-                });
-
+                // The payment method is already attached to the customer via setup intent
                 const subscription = await stripe.subscriptions.create({
                   customer: user.stripeCustomerId,
                   items: [{ price: product.priceId }],
-                  default_payment_method: paymentIntent.payment_method,
+                  default_payment_method: setupIntent.payment_method,
                   payment_settings: { save_default_payment_method: 'on_subscription' },
                   metadata: {
-                    email: paymentEmail,
-                    planType: paymentIntent.metadata.planType,
-                    paymentIntentId: paymentIntent.id
+                    email: setupEmail,
+                    planType: setupIntent.metadata.planType,
+                    setupIntentId: setupIntent.id
                   }
                 });
 
                 await users.updateOne(
-                  { email: paymentEmail },
+                  { email: setupEmail },
                   { 
                     $set: { 
                       isPremium: true,
@@ -300,13 +293,15 @@ export async function handleStripeWebhook(req: Request, res: Response) {
                     }
                   }
                 );
+                
+                console.log('Subscription created successfully:', subscription.id);
               }
             }
           } catch (error) {
             console.error('Error creating subscription from webhook:', error);
-            console.error('Payment Intent ID:', paymentIntent.id);
-            console.error('Payment Method ID:', paymentIntent.payment_method);
-            const user = await users.findOne({ email: paymentEmail });
+            console.error('Setup Intent ID:', setupIntent.id);
+            console.error('Payment Method ID:', setupIntent.payment_method);
+            const user = await users.findOne({ email: setupEmail });
             console.error('Customer ID:', user?.stripeCustomerId);
           }
         }
