@@ -171,25 +171,7 @@ export async function monthlyResetCredits(req: Request, res: Response) {
   }
 }
 
-export async function revenuecatWebhook(req: Request, res: Response) {
-  try {
-    const { event } = req.body;
-    if (event.type === 'INITIAL_PURCHASE' || event.type === 'RENEWAL') {
-      const { subscriber_attributes } = event;
-      const email = subscriber_attributes?.$email?.value;
-      if (email) {
-        const users = getUsersCollection();
-        await users.updateOne(
-          { email },
-          { $set: { isPremium: true, tokens: 30 } }
-        );
-      }
-    }
-    res.status(200).json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to process webhook', details: err });
-  }
-}
+// RevenueCat webhook removed - replaced with Stripe webhook
 
 export async function deductListenCreditForChapter(req: Request, res: Response) {
   try {

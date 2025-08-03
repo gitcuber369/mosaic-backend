@@ -1,6 +1,11 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+// Set NODE_ENV to development if not set
+if (!process.env.NODE_ENV) {
+  process.env.NODE_ENV = 'development';
+}
+
 import express from 'express';
 import { json, raw } from 'express';
 import usersRouter from './routes/users';
@@ -9,14 +14,15 @@ import geminiRouter from './routes/gemini';
 import storiesRouter from './routes/stories';
 import elevenlabsRouter from './routes/elevenlabs';
 import supportRouter from './routes/support';
+import stripeRouter from './routes/stripe';
 import { connectToDatabase } from './db';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// --- RevenueCat webhook raw body parser ---
-app.use('/api/users/revenuecat-webhook', raw({ type: '*/*' }));
-// --- End RevenueCat raw body parser ---
+// --- Stripe webhook raw body parser ---
+app.use('/api/stripe/webhook', raw({ type: 'application/json' }));
+// --- End Stripe raw body parser ---
 
 app.use(json());
 
@@ -30,6 +36,7 @@ app.use('/api/gemini', geminiRouter);
 app.use('/api/stories', storiesRouter);
 app.use('/api/elevenlabs', elevenlabsRouter);
 app.use('/api/support', supportRouter);
+app.use('/api/stripe', stripeRouter);
 
 connectToDatabase()
   .then(() => {

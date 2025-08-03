@@ -17,4 +17,8 @@ export interface User {
   storyCreationCredits: number;
   storyListenCredits: number;
   listenedChapters?: Array<{ storyId: ObjectId; chapters: number[] }>;
+  // Stripe-related fields
+  stripeCustomerId?: string;
+  stripeSubscriptionId?: string;
+  premiumExpiresAt?: Date;
 } 
