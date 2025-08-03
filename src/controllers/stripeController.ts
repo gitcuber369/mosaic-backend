@@ -154,7 +154,7 @@ export async function createSubscription(req: Request, res: Response) {
       }
     });
 
-    // Update user with subscription details
+    // Update user with subscription details and add 30 story creation credits
     await users.updateOne(
       { email },
       { 
@@ -162,6 +162,9 @@ export async function createSubscription(req: Request, res: Response) {
           isPremium: true,
           stripeSubscriptionId: subscription.id,
           premiumExpiresAt: new Date((subscription as any).current_period_end * 1000)
+        },
+        $inc: {
+          storyCreationCredits: 30
         }
       }
     );
@@ -209,21 +212,66 @@ export async function handleStripeWebhook(req: Request, res: Response) {
 
     switch (event.type) {
       case 'customer.subscription.created':
-      case 'customer.subscription.updated':
-        const subscription = event.data.object as any;
-        const email = subscription.metadata?.email;
+        const newSubscription = event.data.object as any;
+        const newEmail = newSubscription.metadata?.email;
         
-        if (email && subscription.status === 'active') {
+        if (newEmail && newSubscription.status === 'active') {
           await users.updateOne(
-            { email },
+            { email: newEmail },
             { 
               $set: { 
                 isPremium: true,
-                stripeSubscriptionId: subscription.id,
-                premiumExpiresAt: new Date(subscription.current_period_end * 1000)
+                stripeSubscriptionId: newSubscription.id,
+                premiumExpiresAt: new Date(newSubscription.current_period_end * 1000)
+              },
+              $inc: {
+                storyCreationCredits: 30
               }
             }
           );
+        }
+        break;
+
+      case 'customer.subscription.updated':
+        const updatedSubscription = event.data.object as any;
+        const updatedEmail = updatedSubscription.metadata?.email;
+        
+        if (updatedEmail && updatedSubscription.status === 'active') {
+          // Check if this is a renewal (previous_period_end exists and is different)
+          const user = await users.findOne({ email: updatedEmail });
+          if (user?.premiumExpiresAt) {
+            const previousExpiry = new Date(user.premiumExpiresAt);
+            const newExpiry = new Date(updatedSubscription.current_period_end * 1000);
+            
+            // If the expiry date has increased, it's a renewal
+            if (newExpiry > previousExpiry) {
+              await users.updateOne(
+                { email: updatedEmail },
+                { 
+                  $set: { 
+                    isPremium: true,
+                    stripeSubscriptionId: updatedSubscription.id,
+                    premiumExpiresAt: new Date(updatedSubscription.current_period_end * 1000)
+                  },
+                  $inc: {
+                    storyCreationCredits: 30
+                  }
+                }
+              );
+            } else {
+              // Just update the subscription details without adding credits
+              await users.updateOne(
+                { email: updatedEmail },
+                { 
+                  $set: { 
+                    isPremium: true,
+                    stripeSubscriptionId: updatedSubscription.id,
+                    premiumExpiresAt: new Date(updatedSubscription.current_period_end * 1000)
+                  }
+                }
+              );
+            }
+          }
         }
         break;
 
@@ -290,6 +338,9 @@ export async function handleStripeWebhook(req: Request, res: Response) {
                       isPremium: true,
                       stripeSubscriptionId: subscription.id,
                       premiumExpiresAt: new Date((subscription as any).current_period_end * 1000)
+                    },
+                    $inc: {
+                      storyCreationCredits: 30
                     }
                   }
                 );
