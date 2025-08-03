@@ -104,13 +104,13 @@ export async function createPaymentIntent(req: Request, res: Response) {
   }
 }
 
-// Create subscription after successful payment
+// Create subscription after successful setup intent
 export async function createSubscription(req: Request, res: Response) {
   try {
-    const { email, paymentIntentId, planType = 'monthly' } = req.body;
+    const { email, setupIntentId, planType = 'monthly' } = req.body;
     
-    if (!email || !paymentIntentId) {
-      return res.status(400).json({ error: 'Email and paymentIntentId are required' });
+    if (!email || !setupIntentId) {
+      return res.status(400).json({ error: 'Email and setupIntentId are required' });
     }
 
     const product = STRIPE_PRODUCTS[planType as keyof typeof STRIPE_PRODUCTS];
@@ -134,23 +134,23 @@ export async function createSubscription(req: Request, res: Response) {
       return res.status(404).json({ error: 'Stripe customer not found' });
     }
 
-    // Retrieve the completed payment intent
-    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+    // Retrieve the completed setup intent
+    const setupIntent = await stripe.setupIntents.retrieve(setupIntentId);
     
-    if (paymentIntent.status !== 'succeeded') {
-      return res.status(400).json({ error: 'Payment intent not completed' });
+    if (setupIntent.status !== 'succeeded') {
+      return res.status(400).json({ error: 'Setup intent not completed' });
     }
 
-    // Create subscription using the customer and price with the payment method from the payment intent
+    // Create subscription using the customer and price with the payment method from the setup intent
     const subscription = await stripe.subscriptions.create({
       customer: user.stripeCustomerId,
       items: [{ price: product.priceId }],
-      default_payment_method: paymentIntent.payment_method as string,
+      default_payment_method: setupIntent.payment_method as string,
       payment_settings: { save_default_payment_method: 'on_subscription' },
       metadata: {
         email,
         planType,
-        paymentIntentId: paymentIntentId
+        setupIntentId: setupIntentId
       }
     });
 
