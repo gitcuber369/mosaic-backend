@@ -44,20 +44,24 @@ export async function createStory(req: Request, res: Response) {
 {
   "introduction": {
     "title": "Introduction",
-    "text": "Introduction text here (about 500 characters)"
+    "description": "A brief description of what this chapter covers",
+    "text": "Introduction text here (exactly 500 characters)"
   },
   "chapters": [
     {
       "title": "The Challenge",
-      "text": "Chapter 1 text here (about 700 characters)"
+      "description": "A brief description of the challenge chapter",
+      "text": "Chapter 1 text here (exactly 500 characters)"
     },
     {
       "title": "The Journey", 
-      "text": "Chapter 2 text here (about 700 characters)"
+      "description": "A brief description of the journey chapter",
+      "text": "Chapter 2 text here (exactly 500 characters)"
     },
     {
       "title": "The Lesson",
-      "text": "Chapter 3 text here (about 700 characters)"
+      "description": "A brief description of the lesson chapter",
+      "text": "Chapter 3 text here (exactly 500 characters)"
     }
   ]
 }
@@ -65,6 +69,8 @@ export async function createStory(req: Request, res: Response) {
 The story should be in the ${style} style for a ${ageGroup} ${gender.toLowerCase()} named ${name}. This character is described as "${character}" and enjoys ${hobbies.join(", ")}.
 
 Make it creative, engaging, and age-appropriate. Avoid mature or scary content. The tone should be heartwarming, educational, and suitable for bedtime or classroom reading.
+
+IMPORTANT: Each text field must be exactly 500 characters. Count carefully and ensure no chapter exceeds 500 characters.
 
 Return ONLY the JSON object, no additional text.`;
 
@@ -128,6 +134,7 @@ Return ONLY the JSON object, no additional text.`;
     const chapters = [
       {
         title: storyContent.introduction.title,
+        description: storyContent.introduction.description,
         text: storyContent.introduction.text,
         audioUrl: '', // Will be generated on-demand
         generated: true, // Text is generated, audio is not
@@ -135,6 +142,7 @@ Return ONLY the JSON object, no additional text.`;
       },
       ...storyContent.chapters.map((chapter: any, index: number) => ({
         title: chapter.title,
+        description: chapter.description,
         text: chapter.text,
         audioUrl: '', // Will be generated on-demand
         generated: true, // Text is generated, audio is not

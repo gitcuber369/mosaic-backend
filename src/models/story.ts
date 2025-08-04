@@ -14,6 +14,7 @@ export interface Story {
   createdAt: Date;
   chapters: Array<{
     title: string;
+    description?: string;
     text: string;
     audioUrl?: string;
     generated: boolean;
