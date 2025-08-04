@@ -110,7 +110,7 @@ export async function createStory(req: Request, res: Response) {
     // 3. Generate image with DALL-E (OpenAI)
     let imageUrl = '';
     try {
-      const imagePrompt = `A beautiful illustration for a children's story: ${character}, in the style of ${style}, vibrant colors, storybook art.`;
+      const imagePrompt = `A realistic, beautiful illustration for a children's story: ${character}, in the style of ${style}, calm feel, soft and muted colors, storybook art, highly detailed, photorealistic.`;
       const imageRes = await openai.images.generate({
         prompt: imagePrompt,
         n: 1,
