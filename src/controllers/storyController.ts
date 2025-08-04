@@ -39,8 +39,10 @@ export async function createStory(req: Request, res: Response) {
 
     // 1. Generate Introduction (Chapter 0)
     let introText = '';
+    let introTitle = '';
+    let introDescription = '';
     try {
-      const prompt = `Write the Introduction for a creative, engaging, and age-appropriate children's story in the ${style} style. The Introduction should be about 500 characters.\n\nThe story is for a ${ageGroup} ${gender.toLowerCase()} named ${name}. This character is described as \"${character}\" and enjoys ${hobbies.join(", ")}.\n\nThe Introduction should introduce ${name}'s world and personality. Make it imaginative, vivid, and fun. Avoid mature or scary content. The tone should be heartwarming, educational, and suitable for bedtime or classroom reading.`;
+      const prompt = `Write the Introduction for a creative, engaging, and age-appropriate children's story in the ${style} style. The Introduction should be about 500 characters.\n\nThe story is for a ${ageGroup} ${gender.toLowerCase()} named ${name}. This character is described as \"${character}\" and enjoys ${hobbies.join(", ")}.\n\nThe Introduction should introduce ${name}'s world and personality. Make it imaginative, vivid, and fun. Avoid mature or scary content. The tone should be heartwarming, educational, and suitable for bedtime or classroom reading.\n\nPlease provide:\n1. A creative title for this introduction (2-4 words)\n2. A brief description (1 sentence, 10-15 words)\n3. The introduction text (about 500 characters)\n\nFormat your response as:\nTITLE: [title]\nDESCRIPTION: [description]\nTEXT: [introduction text]`;
       const completion = await openai.chat.completions.create({
         model: 'gpt-3.5-turbo',
         messages: [
@@ -51,8 +53,19 @@ export async function createStory(req: Request, res: Response) {
         temperature: 0.8,
       });
       if (completion.choices && completion.choices[0] && completion.choices[0].message && typeof completion.choices[0].message.content === 'string') {
-        introText = completion.choices[0].message.content.trim();
+        const content = completion.choices[0].message.content.trim();
+        
+        // Parse the response to extract title, description, and text
+        const titleMatch = content.match(/TITLE:\s*(.+)/i);
+        const descriptionMatch = content.match(/DESCRIPTION:\s*(.+)/i);
+        const textMatch = content.match(/TEXT:\s*([\s\S]+)/i);
+        
+        introTitle = titleMatch ? titleMatch[1].trim() : 'Introduction';
+        introDescription = descriptionMatch ? descriptionMatch[1].trim() : 'Meet our main character';
+        introText = textMatch ? textMatch[1].trim() : content;
       } else {
+        introTitle = 'Introduction';
+        introDescription = 'Meet our main character';
         introText = '';
       }
     } catch (err) {
@@ -61,8 +74,10 @@ export async function createStory(req: Request, res: Response) {
 
     // 2. Generate Chapter 1
     let chapter1Text = '';
+    let chapter1Title = '';
+    let chapter1Description = '';
     try {
-      const prompt = `Write Chapter 1 (The Challenge) for a creative, engaging, and age-appropriate children's story in the ${style} style. This chapter should be about 700 characters.\n\nThe story is for a ${ageGroup} ${gender.toLowerCase()} named ${name}. This character is described as \"${character}\" and enjoys ${hobbies.join(", ")}.\n\nChapter 1 should introduce a small conflict or adventure related to their hobbies or character. Make it imaginative, vivid, and fun. Avoid mature or scary content. The tone should be heartwarming, educational, and suitable for bedtime or classroom reading.`;
+      const prompt = `Write Chapter 1 (The Challenge) for a creative, engaging, and age-appropriate children's story in the ${style} style. This chapter should be about 700 characters.\n\nThe story is for a ${ageGroup} ${gender.toLowerCase()} named ${name}. This character is described as \"${character}\" and enjoys ${hobbies.join(", ")}.\n\nChapter 1 should introduce a small conflict or adventure related to their hobbies or character. Make it imaginative, vivid, and fun. Avoid mature or scary content. The tone should be heartwarming, educational, and suitable for bedtime or classroom reading.\n\nPlease provide:\n1. A creative title for this chapter (2-4 words)\n2. A brief description (1 sentence, 10-15 words)\n3. The chapter text (about 700 characters)\n\nFormat your response as:\nTITLE: [title]\nDESCRIPTION: [description]\nTEXT: [chapter text]`;
       const completion = await openai.chat.completions.create({
         model: 'gpt-3.5-turbo',
         messages: [
@@ -73,8 +88,19 @@ export async function createStory(req: Request, res: Response) {
         temperature: 0.8,
       });
       if (completion.choices && completion.choices[0] && completion.choices[0].message && typeof completion.choices[0].message.content === 'string') {
-        chapter1Text = completion.choices[0].message.content.trim();
+        const content = completion.choices[0].message.content.trim();
+        
+        // Parse the response to extract title, description, and text
+        const titleMatch = content.match(/TITLE:\s*(.+)/i);
+        const descriptionMatch = content.match(/DESCRIPTION:\s*(.+)/i);
+        const textMatch = content.match(/TEXT:\s*([\s\S]+)/i);
+        
+        chapter1Title = titleMatch ? titleMatch[1].trim() : 'The Challenge';
+        chapter1Description = descriptionMatch ? descriptionMatch[1].trim() : 'A daring challenge begins';
+        chapter1Text = textMatch ? textMatch[1].trim() : content;
       } else {
+        chapter1Title = 'The Challenge';
+        chapter1Description = 'A daring challenge begins';
         chapter1Text = '';
       }
     } catch (err) {
@@ -186,19 +212,21 @@ export async function createStory(req: Request, res: Response) {
     const stories = getStoriesCollection();
     const chapters = [
       {
-        title: 'Introduction',
+        title: introTitle,
+        description: introDescription,
         text: introText,
         audioUrl: introAudioUrl,
         generated: true,
       },
       {
-        title: 'The Challenge',
+        title: chapter1Title,
+        description: chapter1Description,
         text: chapter1Text,
         audioUrl: chapter1AudioUrl,
         generated: true,
       },
-      { title: 'The Journey', text: '', audioUrl: '', generated: false },
-      { title: 'The Lesson', text: '', audioUrl: '', generated: false },
+      { title: 'The Journey', description: 'Journey through unknown lands', text: '', audioUrl: '', generated: false },
+      { title: 'The Lesson', description: 'A lesson is learned', text: '', audioUrl: '', generated: false },
     ];
     const result = await stories.insertOne({
       userId: new ObjectId(userId),
@@ -295,16 +323,18 @@ export async function generateChapter(req: Request, res: Response) {
     }
     // Prepare prompt for the chapter
     let prompt = '';
-    let title = '';
+    let defaultTitle = '';
     if (chapterNumber === 2) {
-      title = 'The Journey';
-      prompt = `Write Chapter 2 (The Journey) for a creative, engaging, and age-appropriate children's story in the ${story.style} style. This chapter should be about 700 characters.\n\nThe story is for a ${story.ageGroup} ${story.gender?.toLowerCase() || ''} named ${story.name}. This character is described as \"${story.character}\" and enjoys ${story.hobbies?.join(", ") || ''}.\n\nChapter 2 should describe how the character faces the challenge. Make it imaginative, vivid, and fun. Avoid mature or scary content. The tone should be heartwarming, educational, and suitable for bedtime or classroom reading.`;
+      defaultTitle = 'The Journey';
+      prompt = `Write Chapter 2 (The Journey) for a creative, engaging, and age-appropriate children's story in the ${story.style} style. This chapter should be about 700 characters.\n\nThe story is for a ${story.ageGroup} ${story.gender?.toLowerCase() || ''} named ${story.name}. This character is described as \"${story.character}\" and enjoys ${story.hobbies?.join(", ") || ''}.\n\nChapter 2 should describe how the character faces the challenge. Make it imaginative, vivid, and fun. Avoid mature or scary content. The tone should be heartwarming, educational, and suitable for bedtime or classroom reading.\n\nPlease provide:\n1. A creative title for this chapter (2-4 words)\n2. A brief description (1 sentence, 10-15 words)\n3. The chapter text (about 700 characters)\n\nFormat your response as:\nTITLE: [title]\nDESCRIPTION: [description]\nTEXT: [chapter text]`;
     } else if (chapterNumber === 3) {
-      title = 'The Lesson';
-      prompt = `Write Chapter 3 (The Lesson) for a creative, engaging, and age-appropriate children's story in the ${story.style} style. This chapter should be about 700 characters.\n\nThe story is for a ${story.ageGroup} ${story.gender?.toLowerCase() || ''} named ${story.name}. This character is described as \"${story.character}\" and enjoys ${story.hobbies?.join(", ") || ''}.\n\nChapter 3 should provide a resolution with an uplifting moral or lesson. Make it imaginative, vivid, and fun. Avoid mature or scary content. The tone should be heartwarming, educational, and suitable for bedtime or classroom reading.`;
+      defaultTitle = 'The Lesson';
+      prompt = `Write Chapter 3 (The Lesson) for a creative, engaging, and age-appropriate children's story in the ${story.style} style. This chapter should be about 700 characters.\n\nThe story is for a ${story.ageGroup} ${story.gender?.toLowerCase() || ''} named ${story.name}. This character is described as \"${story.character}\" and enjoys ${story.hobbies?.join(", ") || ''}.\n\nChapter 3 should provide a resolution with an uplifting moral or lesson. Make it imaginative, vivid, and fun. Avoid mature or scary content. The tone should be heartwarming, educational, and suitable for bedtime or classroom reading.\n\nPlease provide:\n1. A creative title for this chapter (2-4 words)\n2. A brief description (1 sentence, 10-15 words)\n3. The chapter text (about 700 characters)\n\nFormat your response as:\nTITLE: [title]\nDESCRIPTION: [description]\nTEXT: [chapter text]`;
     }
-    // Generate chapter text
+    // Generate chapter text, title, and description
     let chapterText = '';
+    let chapterTitle = '';
+    let chapterDescription = '';
     try {
       const completion = await openai.chat.completions.create({
         model: 'gpt-3.5-turbo',
@@ -316,8 +346,19 @@ export async function generateChapter(req: Request, res: Response) {
         temperature: 0.8,
       });
       if (completion.choices && completion.choices[0] && completion.choices[0].message && typeof completion.choices[0].message.content === 'string') {
-        chapterText = completion.choices[0].message.content.trim();
+        const content = completion.choices[0].message.content.trim();
+        
+        // Parse the response to extract title, description, and text
+        const titleMatch = content.match(/TITLE:\s*(.+)/i);
+        const descriptionMatch = content.match(/DESCRIPTION:\s*(.+)/i);
+        const textMatch = content.match(/TEXT:\s*([\s\S]+)/i);
+        
+        chapterTitle = titleMatch ? titleMatch[1].trim() : defaultTitle;
+        chapterDescription = descriptionMatch ? descriptionMatch[1].trim() : 'A new adventure unfolds';
+        chapterText = textMatch ? textMatch[1].trim() : content;
       } else {
+        chapterTitle = defaultTitle;
+        chapterDescription = 'A new adventure unfolds';
         chapterText = '';
       }
     } catch (err) {
@@ -360,7 +401,8 @@ export async function generateChapter(req: Request, res: Response) {
     // Update the chapter in the story
     const update = {
       $set: {
-        [`chapters.${chapterNumber}.title`]: title,
+        [`chapters.${chapterNumber}.title`]: chapterTitle,
+        [`chapters.${chapterNumber}.description`]: chapterDescription,
         [`chapters.${chapterNumber}.text`]: chapterText,
         [`chapters.${chapterNumber}.audioUrl`]: chapterAudioUrl,
         [`chapters.${chapterNumber}.generated`]: true,
@@ -370,7 +412,8 @@ export async function generateChapter(req: Request, res: Response) {
     // Return the updated chapter
     res.status(200).json({
       chapter: {
-        title,
+        title: chapterTitle,
+        description: chapterDescription,
         text: chapterText,
         audioUrl: chapterAudioUrl,
         generated: true,
