@@ -37,70 +37,51 @@ export async function createStory(req: Request, res: Response) {
       return res.status(403).json({ error: 'No story creation credits left' });
     }
 
-    // Generate all story content at once (introduction + all chapters)
-    let storyContent = null;
+    // 1. Generate Introduction (Chapter 0)
+    let introText = '';
     try {
-      const prompt = `Create a complete children's story in JSON format with the following structure:
-{
-  "introduction": {
-    "title": "Introduction",
-    "description": "A brief description of what this chapter covers",
-    "text": "Introduction text here (exactly 500 characters)"
-  },
-  "chapters": [
-    {
-      "title": "The Challenge",
-      "description": "A brief description of the challenge chapter",
-      "text": "Chapter 1 text here (exactly 500 characters)"
-    },
-    {
-      "title": "The Journey", 
-      "description": "A brief description of the journey chapter",
-      "text": "Chapter 2 text here (exactly 500 characters)"
-    },
-    {
-      "title": "The Lesson",
-      "description": "A brief description of the lesson chapter",
-      "text": "Chapter 3 text here (exactly 500 characters)"
-    }
-  ]
-}
-
-The story should be in the ${style} style for a ${ageGroup} ${gender.toLowerCase()} named ${name}. This character is described as "${character}" and enjoys ${hobbies.join(", ")}.
-
-Make it creative, engaging, and age-appropriate. Avoid mature or scary content. The tone should be heartwarming, educational, and suitable for bedtime or classroom reading.
-
-IMPORTANT: Each text field must be exactly 500 characters. Count carefully and ensure no chapter exceeds 500 characters.
-
-Return ONLY the JSON object, no additional text.`;
-
+      const prompt = `Write the Introduction for a creative, engaging, and age-appropriate children's story in the ${style} style. The Introduction should be about 500 characters.\n\nThe story is for a ${ageGroup} ${gender.toLowerCase()} named ${name}. This character is described as \"${character}\" and enjoys ${hobbies.join(", ")}.\n\nThe Introduction should introduce ${name}'s world and personality. Make it imaginative, vivid, and fun. Avoid mature or scary content. The tone should be heartwarming, educational, and suitable for bedtime or classroom reading.`;
       const completion = await openai.chat.completions.create({
         model: 'gpt-3.5-turbo',
         messages: [
-          { role: 'system', content: 'You are a creative children\'s story writer. Always respond with valid JSON only.' },
+          { role: 'system', content: 'You are a creative children\'s story writer.' },
           { role: 'user', content: prompt },
         ],
-        max_tokens: 2000,
+        max_tokens: 800,
         temperature: 0.8,
       });
-      
       if (completion.choices && completion.choices[0] && completion.choices[0].message && typeof completion.choices[0].message.content === 'string') {
-        const content = completion.choices[0].message.content.trim();
-        // Try to parse the JSON response
-        try {
-          storyContent = JSON.parse(content);
-        } catch (parseError) {
-          console.error('Failed to parse JSON response:', content);
-          return res.status(500).json({ error: 'Failed to parse story content', details: parseError });
-        }
+        introText = completion.choices[0].message.content.trim();
       } else {
-        return res.status(500).json({ error: 'No content received from OpenAI' });
+        introText = '';
       }
     } catch (err) {
-      return res.status(500).json({ error: 'Failed to generate story content', details: err });
+      return res.status(500).json({ error: 'Failed to generate introduction', details: err });
     }
 
-    // Generate image with DALL-E (OpenAI)
+    // 2. Generate Chapter 1
+    let chapter1Text = '';
+    try {
+      const prompt = `Write Chapter 1 (The Challenge) for a creative, engaging, and age-appropriate children's story in the ${style} style. This chapter should be about 700 characters.\n\nThe story is for a ${ageGroup} ${gender.toLowerCase()} named ${name}. This character is described as \"${character}\" and enjoys ${hobbies.join(", ")}.\n\nChapter 1 should introduce a small conflict or adventure related to their hobbies or character. Make it imaginative, vivid, and fun. Avoid mature or scary content. The tone should be heartwarming, educational, and suitable for bedtime or classroom reading.`;
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-3.5-turbo',
+        messages: [
+          { role: 'system', content: 'You are a creative children\'s story writer.' },
+          { role: 'user', content: prompt },
+        ],
+        max_tokens: 800,
+        temperature: 0.8,
+      });
+      if (completion.choices && completion.choices[0] && completion.choices[0].message && typeof completion.choices[0].message.content === 'string') {
+        chapter1Text = completion.choices[0].message.content.trim();
+      } else {
+        chapter1Text = '';
+      }
+    } catch (err) {
+      return res.status(500).json({ error: 'Failed to generate chapter 1', details: err });
+    }
+
+    // 3. Generate image with DALL-E (OpenAI)
     let imageUrl = '';
     try {
       const imagePrompt = `A beautiful illustration for a children's story: ${character}, in the style of ${style}, vibrant colors, storybook art.`;
@@ -130,28 +111,95 @@ Return ONLY the JSON object, no additional text.`;
       return res.status(500).json({ error: 'Failed to generate or upload image', details: err });
     }
 
-    // Create chapters array with all text content (no audio yet)
+    // 4. Generate audio for Introduction
+    let introAudioUrl = '';
+    try {
+      const openaiTTSRes = await axios.post(
+        'https://api.openai.com/v1/audio/speech',
+        {
+          model: 'tts-1',
+          input: introText,
+          voice: 'alloy',
+          response_format: 'mp3'
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          responseType: 'arraybuffer'
+        }
+      );
+      const audioBuffer = Buffer.from(openaiTTSRes.data);
+      // Use cloudinary.uploader.upload instead of upload_stream
+      introAudioUrl = await new Promise((resolve, reject) => {
+        cloudinary.uploader.upload(
+          `data:audio/mp3;base64,${audioBuffer.toString('base64')}`,
+          { resource_type: 'video', format: 'mp3', folder: 'stories_audio' },
+          (error, result) => {
+            if (error) return reject(error);
+            if (!result) return reject(new Error('No result from Cloudinary upload'));
+            resolve(result.secure_url);
+          }
+        );
+      });
+    } catch (err) {
+      return res.status(500).json({ error: 'Failed to generate or upload introduction audio', details: err });
+    }
+
+    // 5. Generate audio for Chapter 1
+    let chapter1AudioUrl = '';
+    try {
+      const openaiTTSRes = await axios.post(
+        'https://api.openai.com/v1/audio/speech',
+        {
+          model: 'tts-1',
+          input: chapter1Text,
+          voice: 'alloy',
+          response_format: 'mp3'
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          responseType: 'arraybuffer'
+        }
+      );
+      const audioBuffer = Buffer.from(openaiTTSRes.data);
+      chapter1AudioUrl = await new Promise((resolve, reject) => {
+        cloudinary.uploader.upload(
+          `data:audio/mp3;base64,${audioBuffer.toString('base64')}`,
+          { resource_type: 'video', format: 'mp3', folder: 'stories_audio' },
+          (error, result) => {
+            if (error) return reject(error);
+            if (!result) return reject(new Error('No result from Cloudinary upload'));
+            resolve(result.secure_url);
+          }
+        );
+      });
+    } catch (err) {
+      return res.status(500).json({ error: 'Failed to generate or upload chapter 1 audio', details: err });
+    }
+
+    // 6. Save story with chapters array
+    const stories = getStoriesCollection();
     const chapters = [
       {
-        title: storyContent.introduction.title,
-        description: storyContent.introduction.description,
-        text: storyContent.introduction.text,
-        audioUrl: '', // Will be generated on-demand
-        generated: true, // Text is generated, audio is not
-        audioGenerated: false, // Track audio generation separately
+        title: 'Introduction',
+        text: introText,
+        audioUrl: introAudioUrl,
+        generated: true,
       },
-      ...storyContent.chapters.map((chapter: any, index: number) => ({
-        title: chapter.title,
-        description: chapter.description,
-        text: chapter.text,
-        audioUrl: '', // Will be generated on-demand
-        generated: true, // Text is generated, audio is not
-        audioGenerated: false, // Track audio generation separately
-      }))
+      {
+        title: 'The Challenge',
+        text: chapter1Text,
+        audioUrl: chapter1AudioUrl,
+        generated: true,
+      },
+      { title: 'The Journey', text: '', audioUrl: '', generated: false },
+      { title: 'The Lesson', text: '', audioUrl: '', generated: false },
     ];
-
-    // Save story with all text content
-    const stories = getStoriesCollection();
     const result = await stories.insertOne({
       userId: new ObjectId(userId),
       style,
@@ -166,16 +214,10 @@ Return ONLY the JSON object, no additional text.`;
       character,
       hobbies,
     });
-
     res.status(201).json({
       success: true,
       storyId: result.insertedId,
-      chapters: chapters.map(c => ({ 
-        title: c.title, 
-        text: c.text,
-        generated: c.generated,
-        audioGenerated: c.audioGenerated 
-      })),
+      chapters: chapters.map((c, i) => i < 2 ? c : { title: c.title, generated: false }),
       image: imageUrl,
     });
   } catch (err) {
@@ -239,8 +281,8 @@ export async function generateChapter(req: Request, res: Response) {
   try {
     const { id } = req.params;
     const { chapterNumber } = req.body;
-    if (!id || typeof chapterNumber !== 'number' || chapterNumber < 0 || chapterNumber > 3) {
-      return res.status(400).json({ error: 'Invalid story id or chapter number (must be 0-3)' });
+    if (!id || typeof chapterNumber !== 'number' || chapterNumber < 2 || chapterNumber > 3) {
+      return res.status(400).json({ error: 'Invalid story id or chapter number (must be 2 or 3)' });
     }
     const stories = getStoriesCollection();
     const story = await stories.findOne({ _id: new ObjectId(id) });
@@ -248,30 +290,47 @@ export async function generateChapter(req: Request, res: Response) {
     if (!story.chapters || !story.chapters[chapterNumber]) {
       return res.status(400).json({ error: 'Chapter not found in story' });
     }
-    
-    const chapter = story.chapters[chapterNumber];
-    
-    // If audio is already generated, return it
-    if (chapter.audioGenerated && chapter.audioUrl) {
-      return res.status(200).json({ 
-        chapter: chapter, 
-        alreadyGenerated: true 
+    if (story.chapters[chapterNumber].generated) {
+      return res.status(200).json({ chapter: story.chapters[chapterNumber], alreadyGenerated: true });
+    }
+    // Prepare prompt for the chapter
+    let prompt = '';
+    let title = '';
+    if (chapterNumber === 2) {
+      title = 'The Journey';
+      prompt = `Write Chapter 2 (The Journey) for a creative, engaging, and age-appropriate children's story in the ${story.style} style. This chapter should be about 700 characters.\n\nThe story is for a ${story.ageGroup} ${story.gender?.toLowerCase() || ''} named ${story.name}. This character is described as \"${story.character}\" and enjoys ${story.hobbies?.join(", ") || ''}.\n\nChapter 2 should describe how the character faces the challenge. Make it imaginative, vivid, and fun. Avoid mature or scary content. The tone should be heartwarming, educational, and suitable for bedtime or classroom reading.`;
+    } else if (chapterNumber === 3) {
+      title = 'The Lesson';
+      prompt = `Write Chapter 3 (The Lesson) for a creative, engaging, and age-appropriate children's story in the ${story.style} style. This chapter should be about 700 characters.\n\nThe story is for a ${story.ageGroup} ${story.gender?.toLowerCase() || ''} named ${story.name}. This character is described as \"${story.character}\" and enjoys ${story.hobbies?.join(", ") || ''}.\n\nChapter 3 should provide a resolution with an uplifting moral or lesson. Make it imaginative, vivid, and fun. Avoid mature or scary content. The tone should be heartwarming, educational, and suitable for bedtime or classroom reading.`;
+    }
+    // Generate chapter text
+    let chapterText = '';
+    try {
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-3.5-turbo',
+        messages: [
+          { role: 'system', content: 'You are a creative children\'s story writer.' },
+          { role: 'user', content: prompt },
+        ],
+        max_tokens: 800,
+        temperature: 0.8,
       });
+      if (completion.choices && completion.choices[0] && completion.choices[0].message && typeof completion.choices[0].message.content === 'string') {
+        chapterText = completion.choices[0].message.content.trim();
+      } else {
+        chapterText = '';
+      }
+    } catch (err) {
+      return res.status(500).json({ error: 'Failed to generate chapter text', details: err });
     }
-    
-    // If text is not generated, return error
-    if (!chapter.generated || !chapter.text) {
-      return res.status(400).json({ error: 'Chapter text not found' });
-    }
-    
-    // Generate audio for the chapter
+    // Generate audio for chapter
     let chapterAudioUrl = '';
     try {
       const openaiTTSRes = await axios.post(
         'https://api.openai.com/v1/audio/speech',
         {
           model: 'tts-1',
-          input: chapter.text,
+          input: chapterText,
           voice: 'alloy',
           response_format: 'mp3'
         },
@@ -285,7 +344,7 @@ export async function generateChapter(req: Request, res: Response) {
       );
       const audioBuffer = Buffer.from(openaiTTSRes.data);
       chapterAudioUrl = await new Promise((resolve, reject) => {
-        cloudinary.uploader.upload(
+        const stream = cloudinary.uploader.upload(
           `data:audio/mp3;base64,${audioBuffer.toString('base64')}`,
           { resource_type: 'video', format: 'mp3', folder: 'stories_audio' },
           (error, result) => {
@@ -298,28 +357,27 @@ export async function generateChapter(req: Request, res: Response) {
     } catch (err) {
       return res.status(500).json({ error: 'Failed to generate or upload chapter audio', details: err });
     }
-    
-    // Update the chapter with audio URL
+    // Update the chapter in the story
     const update = {
       $set: {
+        [`chapters.${chapterNumber}.title`]: title,
+        [`chapters.${chapterNumber}.text`]: chapterText,
         [`chapters.${chapterNumber}.audioUrl`]: chapterAudioUrl,
-        [`chapters.${chapterNumber}.audioGenerated`]: true,
+        [`chapters.${chapterNumber}.generated`]: true,
       }
     };
     await stories.updateOne({ _id: new ObjectId(id) }, update);
-    
     // Return the updated chapter
     res.status(200).json({
       chapter: {
-        title: chapter.title,
-        text: chapter.text,
+        title,
+        text: chapterText,
         audioUrl: chapterAudioUrl,
-        generated: chapter.generated,
-        audioGenerated: true,
+        generated: true,
       }
     });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to generate chapter audio', details: err });
+    res.status(500).json({ error: 'Failed to generate chapter', details: err });
   }
 }
 
