@@ -17,6 +17,7 @@ export interface Story {
     text: string;
     audioUrl?: string;
     generated: boolean;
+    audioGenerated?: boolean;
   }>;
   ageGroup: string;
   gender: string;
