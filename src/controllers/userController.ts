@@ -39,7 +39,6 @@ export async function createUser(req: Request, res: Response) {
       dailyStoryCount: dailyStoryCount || 0,
       preferences: preferences || [],
       createdAt: new Date(),
-      storyCreationCredits: 5,
       storyListenCredits: 30,
     };
 
@@ -108,7 +107,6 @@ export async function getUserByEmail(req: Request, res: Response) {
       return res.status(404).json({ error: 'User not found' });
     }
  
-    if (typeof user.storyCreationCredits !== 'number') user.storyCreationCredits = 5;
     if (typeof user.storyListenCredits !== 'number') user.storyListenCredits = 30;
     res.status(200).json(user);
   } catch (err) {
@@ -146,7 +144,7 @@ export async function buyStoryCredits(req: Request, res: Response) {
     const users = getUsersCollection();
     const result: any = await users.findOneAndUpdate(
       { email },
-      { $inc: { storyCreationCredits: credits } },
+      { $inc: { storyListenCredits: credits } },
       { returnDocument: 'after' }
     );
     if (!result.value) {
@@ -163,7 +161,7 @@ export async function monthlyResetCredits(req: Request, res: Response) {
     const users = getUsersCollection();
     const result = await users.updateMany(
       {},
-      { $set: { storyCreationCredits: 5, storyListenCredits: 30 } }
+      { $set: { storyListenCredits: 30 } }
     );
     res.status(200).json({ success: true, modifiedCount: result.modifiedCount });
   } catch (err) {

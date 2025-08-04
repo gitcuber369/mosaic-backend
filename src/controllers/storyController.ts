@@ -27,14 +27,14 @@ export async function createStory(req: Request, res: Response) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    // Deduct 1 story creation credit from user (atomic update)
+    // Deduct 1 story listening credit from user (atomic update) - this covers both generation and listening
     const users = getUsersCollection();
     const updateResult = await users.updateOne(
-      { _id: new ObjectId(userId), storyCreationCredits: { $gt: 0 } },
-      { $inc: { storyCreationCredits: -1 } }
+      { _id: new ObjectId(userId), storyListenCredits: { $gt: 0 } },
+      { $inc: { storyListenCredits: -1 } }
     );
     if (updateResult.modifiedCount === 0) {
-      return res.status(403).json({ error: 'No story creation credits left' });
+      return res.status(403).json({ error: 'No story credits left' });
     }
 
     // 1. Generate Introduction (Chapter 0)

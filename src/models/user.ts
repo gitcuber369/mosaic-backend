@@ -14,7 +14,7 @@ export interface User {
   dailyStoryCount: number;
   preferences: string[];
   createdAt: Date;
-  storyCreationCredits: number;
+  storyCreationCredits?: number; // Deprecated - now using storyListenCredits for both generation and listening
   storyListenCredits: number;
   listenedChapters?: Array<{ storyId: ObjectId; chapters: number[] }>;
   // Stripe-related fields
