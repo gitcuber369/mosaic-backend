@@ -110,7 +110,7 @@ export async function createStory(req: Request, res: Response) {
     // 3. Generate image with DALL-E (OpenAI)
     let imageUrl = '';
     try {
-      const imagePrompt = `A realistic, beautiful illustration for a children's story: ${character}, in the style of ${style}, calm feel, soft and muted colors, storybook art, highly detailed, photorealistic.`;
+      const imagePrompt = `${character}, illustrated in the style of ${style}. The scene is vibrant, magical, and full of childlike wonder. ${character} is depicted with expressive, friendly eyes and a joyful demeanor, surrounded by a richly detailed background that sparks imagination—such as talking trees, candy-colored clouds, or floating storybook islands. Use soft pastel tones or warm watercolor hues, gentle lighting, and whimsical proportions. The environment should evoke curiosity and comfort, like a scene straight from a bedtime storybook. The image should be full of charm, storytelling elements, and suitable for children aged 4–8. Include dynamic poses, playful details, and a sense of adventure or discovery.`;
       const imageRes = await openai.images.generate({
         prompt: imagePrompt,
         n: 1,
