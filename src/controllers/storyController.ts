@@ -110,11 +110,7 @@ export async function createStory(req: Request, res: Response) {
     // 3. Generate image with DALL-E (OpenAI)
     let imageUrl = '';
     try {
-      const imagePrompt = `Create a charming and heartwarming 3D illustration in a style similar to Pixar or Disney animation—featuring soft, rounded shapes, expressive facial features, and rich, cinematic lighting. 
-The scene should center on ${name}, a playful and curious ${ageGroup} ${gender.toLowerCase()} described as "${character}". Surround them with a magical, storybook-inspired environment filled with whimsical, imaginative elements like glowing trees, floating islands, candy-colored clouds, or oversized friendly animals.
-Use warm pastel tones or gentle watercolor lighting. The mood should feel like a bedtime story—safe, cozy, and full of wonder. Include soft textures, glowing particles, and dynamic elements like floating objects or animated light sources. 
-The style must resemble high-end 3D animation with stylized proportions, emotional expressiveness, and playful energy—perfectly suited for children ages 4–8.
-`;
+      const imagePrompt = `A highly detailed 3D illustration in a whimsical, magical cartoon style similar to high-end Pixar or Disney animations. The scene features ${character} in a vibrant, storybook-like environment filled with rich, cinematic lighting, glowing highlights, soft shadows, and painterly textures. The mood is dreamlike and full of childlike wonder. Use warm tones, glowing elements (like lanterns, moonlight, or magic particles), and expressive character features—large, friendly eyes, soft facial expressions, and playful posture. The background is dynamic and immersive—think castles, floating objects, whimsical nature, or fantasy landscapes—evoking a sense of adventure and comfort suitable for children aged 4–8. Maintain stylized 3D proportions, soft sculpting, and a fairytale-like composition throughout`;
       const imageRes = await openai.images.generate({
         prompt: imagePrompt,
         n: 1,
