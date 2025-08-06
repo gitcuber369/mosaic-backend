@@ -114,6 +114,7 @@ export async function createStory(req: Request, res: Response) {
       const imageRes = await openai.images.generate({
         prompt: imagePrompt,
         n: 1,
+        model: 'gpt-image-1',
         size: '512x512',
         response_format: 'url',
       });
