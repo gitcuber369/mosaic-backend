@@ -13,8 +13,11 @@ cloudinary.config({
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function createStory(req: Request, res: Response) {
+  console.log('🚀 Starting story creation process...');
+  
   try {
     const { userId, style, voice, rating, name, character, gender, ageGroup, hobbies } = req.body;
+    console.log('📝 Request body:', { userId, style, voice, rating, name, character, gender, ageGroup, hobbies });
     let voiceId = 'EXAVITQu4vr4xnSDxMaL'; // fallback
     if (voice && /^[a-zA-Z0-9]{20,}$/.test(voice)) {
       voiceId = voice;
@@ -28,16 +31,20 @@ export async function createStory(req: Request, res: Response) {
     }
 
     // Deduct 1 story listening credit from user (atomic update) - this covers both generation and listening
+    console.log('💰 Checking user credits for userId:', userId);
     const users = getUsersCollection();
     const updateResult = await users.updateOne(
       { _id: new ObjectId(userId), storyListenCredits: { $gt: 0 } },
       { $inc: { storyListenCredits: -1 } }
     );
     if (updateResult.modifiedCount === 0) {
+      console.log('❌ No story credits left for userId:', userId);
       return res.status(403).json({ error: 'No story credits left' });
     }
+    console.log('✅ Credits deducted successfully for userId:', userId);
 
     // 1. Generate Introduction (Chapter 0)
+    console.log('📖 Starting Introduction generation...');
     let introText = '';
     let introTitle = '';
     let introDescription = '';
@@ -63,16 +70,20 @@ export async function createStory(req: Request, res: Response) {
         introTitle = titleMatch ? titleMatch[1].trim() : 'Introduction';
         introDescription = descriptionMatch ? descriptionMatch[1].trim() : 'Meet our main character';
         introText = textMatch ? textMatch[1].trim() : content;
+        console.log('✅ Introduction generated successfully:', { introTitle, introDescription, textLength: introText.length });
       } else {
         introTitle = 'Introduction';
         introDescription = 'Meet our main character';
         introText = '';
+        console.log('⚠️ No content in introduction response, using defaults');
       }
     } catch (err) {
+      console.error('❌ Error generating introduction:', err);
       return res.status(500).json({ error: 'Failed to generate introduction', details: err });
     }
 
     // 2. Generate Chapter 1
+    console.log('📖 Starting Chapter 1 generation...');
     let chapter1Text = '';
     let chapter1Title = '';
     let chapter1Description = '';
@@ -98,16 +109,20 @@ export async function createStory(req: Request, res: Response) {
         chapter1Title = titleMatch ? titleMatch[1].trim() : 'The Challenge';
         chapter1Description = descriptionMatch ? descriptionMatch[1].trim() : 'A daring challenge begins';
         chapter1Text = textMatch ? textMatch[1].trim() : content;
+        console.log('✅ Chapter 1 generated successfully:', { chapter1Title, chapter1Description, textLength: chapter1Text.length });
       } else {
         chapter1Title = 'The Challenge';
         chapter1Description = 'A daring challenge begins';
         chapter1Text = '';
+        console.log('⚠️ No content in chapter 1 response, using defaults');
       }
     } catch (err) {
+      console.error('❌ Error generating chapter 1:', err);
       return res.status(500).json({ error: 'Failed to generate chapter 1', details: err });
     }
 
     // 3. Generate image with DALL-E (OpenAI)
+    console.log('🎨 Starting image generation with gpt-image-1...');
     let imageUrl = '';
     try {
       const imagePrompt = `A highly detailed 3D illustration in a whimsical, magical cartoon style similar to high-end Pixar or Disney animations. The scene features ${character} in a vibrant, storybook-like environment filled with rich, cinematic lighting, glowing highlights, soft shadows, and painterly textures. The mood is dreamlike and full of childlike wonder. Use warm tones, glowing elements (like lanterns, moonlight, or magic particles), and expressive character features—large, friendly eyes, soft facial expressions, and playful posture. The background is dynamic and immersive—think castles, floating objects, whimsical nature, or fantasy landscapes—evoking a sense of adventure and comfort suitable for children aged 4–8. Maintain stylized 3D proportions, soft sculpting, and a fairytale-like composition throughout`;
@@ -118,9 +133,12 @@ export async function createStory(req: Request, res: Response) {
         size: '512x512',
         response_format: 'url',
       });
+      console.log('📸 Image generation response:', imageRes);
       if (imageRes && Array.isArray(imageRes.data) && imageRes.data[0] && typeof imageRes.data[0].url === 'string') {
+        console.log('✅ Image generated successfully, downloading...');
         const imageBufferRes = await axios.get(imageRes.data[0].url, { responseType: 'arraybuffer' });
         const imageBuffer = Buffer.from(imageBufferRes.data);
+        console.log('📥 Image downloaded, uploading to Cloudinary...');
         imageUrl = await new Promise((resolve, reject) => {
           const stream = cloudinary.uploader.upload(`data:image/png;base64,${imageBuffer.toString('base64')}`,
             { resource_type: 'image', format: 'png', folder: 'stories_images' },
@@ -131,14 +149,18 @@ export async function createStory(req: Request, res: Response) {
             }
           );
         });
+        console.log('✅ Image uploaded to Cloudinary:', imageUrl);
       } else {
+        console.log('⚠️ No image data in response, using empty image URL');
         imageUrl = '';
       }
     } catch (err) {
+      console.error('❌ Error generating or uploading image:', err);
       return res.status(500).json({ error: 'Failed to generate or upload image', details: err });
     }
 
     // 4. Generate audio for Introduction
+    console.log('🎵 Starting Introduction audio generation...');
     let introAudioUrl = '';
     try {
       const openaiTTSRes = await axios.post(
@@ -170,11 +192,14 @@ export async function createStory(req: Request, res: Response) {
           }
         );
       });
+      console.log('✅ Introduction audio uploaded to Cloudinary:', introAudioUrl);
     } catch (err) {
+      console.error('❌ Error generating or uploading introduction audio:', err);
       return res.status(500).json({ error: 'Failed to generate or upload introduction audio', details: err });
     }
 
     // 5. Generate audio for Chapter 1
+    console.log('🎵 Starting Chapter 1 audio generation...');
     let chapter1AudioUrl = '';
     try {
       const openaiTTSRes = await axios.post(
@@ -205,11 +230,14 @@ export async function createStory(req: Request, res: Response) {
           }
         );
       });
+      console.log('✅ Chapter 1 audio uploaded to Cloudinary:', chapter1AudioUrl);
     } catch (err) {
+      console.error('❌ Error generating or uploading chapter 1 audio:', err);
       return res.status(500).json({ error: 'Failed to generate or upload chapter 1 audio', details: err });
     }
 
     // 6. Save story with chapters array
+    console.log('💾 Starting story save to database...');
     const stories = getStoriesCollection();
     const chapters = [
       {
@@ -243,6 +271,8 @@ export async function createStory(req: Request, res: Response) {
       character,
       hobbies,
     });
+    console.log('✅ Story saved to database successfully with ID:', result.insertedId);
+    console.log('🎉 Story creation completed successfully!');
     res.status(201).json({
       success: true,
       storyId: result.insertedId,
@@ -250,6 +280,7 @@ export async function createStory(req: Request, res: Response) {
       image: imageUrl,
     });
   } catch (err) {
+    console.error('❌ Fatal error in story creation:', err);
     res.status(500).json({ error: 'Failed to create story', details: err });
   }
 }
