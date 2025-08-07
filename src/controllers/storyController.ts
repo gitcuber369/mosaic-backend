@@ -125,7 +125,10 @@ export async function createStory(req: Request, res: Response) {
     console.log('🎨 Starting image generation with gpt-image-1...');
     let imageUrl = '';
     try {
-      const imagePrompt = `A highly detailed 3D illustration in a whimsical, magical cartoon style similar to high-end Pixar or Disney animations. The scene features ${character} in a vibrant, storybook-like environment filled with rich, cinematic lighting, glowing highlights, soft shadows, and painterly textures. The mood is dreamlike and full of childlike wonder. Use warm tones, glowing elements (like lanterns, moonlight, or magic particles), and expressive character features—large, friendly eyes, soft facial expressions, and playful posture. The background is dynamic and immersive—think castles, floating objects, whimsical nature, or fantasy landscapes—evoking a sense of adventure and comfort suitable for children aged 4–8. Maintain stylized 3D proportions, soft sculpting, and a fairytale-like composition throughout`;
+      const imagePrompt = `A stunningly detailed 3D illustration in a whimsical, magical cartoon style inspired by top-tier Pixar and Disney animations. The scene showcases ${character} in a vibrant, storybook-inspired fantasy world, bursting with rich, cinematic lighting, glowing ambient highlights, soft volumetric shadows, and painterly textures throughout.
+The mood is dreamlike and full of childlike wonder, evoking warmth and imagination. Use glowing magical elements like floating lanterns, moonbeams, fairy dust, or sparkling particles to add a sense of enchantment.
+${character} should have expressive, oversized eyes, gentle facial features, and a playful, dynamic posture—full of life and personality.
+The background is lush and immersive: think magical forests, floating castles, swirling clouds, or fantastical nature with exaggerated, stylized forms. Colors should be warm and inviting, with golden glows and soft gradients that enhance the fantasy setting.`;    
       const imageRes = await openai.images.generate({
         prompt: imagePrompt,
         n: 1,
