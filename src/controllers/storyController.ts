@@ -30,17 +30,31 @@ export async function createStory(req: Request, res: Response) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    // Deduct 1 story listening credit from user (atomic update) - this covers both generation and listening
+    // Check if user has credits before proceeding
     console.log('💰 Checking user credits for userId:', userId);
     const users = getUsersCollection();
+    const user = await users.findOne({ _id: new ObjectId(userId) });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    if (!user.storyListenCredits || user.storyListenCredits <= 0) {
+      console.log('❌ No story credits left for userId:', userId);
+      return res.status(403).json({ error: 'No story credits left' });
+    }
+    
+    // Deduct 1 story listening credit from user (atomic update)
     const updateResult = await users.updateOne(
       { _id: new ObjectId(userId), storyListenCredits: { $gt: 0 } },
       { $inc: { storyListenCredits: -1 } }
     );
+    
     if (updateResult.modifiedCount === 0) {
-      console.log('❌ No story credits left for userId:', userId);
+      console.log('❌ Failed to deduct credits for userId:', userId);
       return res.status(403).json({ error: 'No story credits left' });
     }
+    
     console.log('✅ Credits deducted successfully for userId:', userId);
 
     // 1. Generate Introduction (Chapter 0)
