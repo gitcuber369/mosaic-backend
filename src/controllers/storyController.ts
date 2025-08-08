@@ -44,18 +44,7 @@ export async function createStory(req: Request, res: Response) {
       return res.status(403).json({ error: 'No story credits left' });
     }
     
-    // Deduct 1 story listening credit from user (atomic update)
-    const updateResult = await users.updateOne(
-      { _id: new ObjectId(userId), storyListenCredits: { $gt: 0 } },
-      { $inc: { storyListenCredits: -1 } }
-    );
-    
-    if (updateResult.modifiedCount === 0) {
-      console.log('❌ Failed to deduct credits for userId:', userId);
-      return res.status(403).json({ error: 'No story credits left' });
-    }
-    
-    console.log('✅ Credits deducted successfully for userId:', userId);
+    console.log('✅ User has sufficient credits, proceeding with story generation');
 
     // 1. Generate Introduction (Chapter 0)
     console.log('📖 Starting Introduction generation...');
@@ -285,6 +274,23 @@ export async function createStory(req: Request, res: Response) {
       hobbies,
     });
     console.log('✅ Story saved to database successfully with ID:', result.insertedId);
+    
+    // 7. Deduct credits only after successful story creation
+    console.log('💰 Deducting credits after successful story creation...');
+    const updateResult = await users.updateOne(
+      { _id: new ObjectId(userId), storyListenCredits: { $gt: 0 } },
+      { $inc: { storyListenCredits: -1 } }
+    );
+    
+    if (updateResult.modifiedCount === 0) {
+      console.log('❌ Failed to deduct credits for userId:', userId);
+      // Even if credit deduction fails, the story was created successfully
+      // We'll still return success but log the issue
+      console.log('⚠️ Story created but credit deduction failed');
+    } else {
+      console.log('✅ Credits deducted successfully for userId:', userId);
+    }
+    
     console.log('🎉 Story creation completed successfully!');
     res.status(201).json({
       success: true,
@@ -294,6 +300,8 @@ export async function createStory(req: Request, res: Response) {
     });
   } catch (err) {
     console.error('❌ Fatal error in story creation:', err);
+    // If any step fails, we don't deduct credits since the story wasn't created successfully
+    console.log('⚠️ Story creation failed, no credits deducted');
     res.status(500).json({ error: 'Failed to create story', details: err });
   }
 }
