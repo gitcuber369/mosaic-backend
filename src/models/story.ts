@@ -10,7 +10,8 @@ export interface Story {
   image: string; // URL or path to the image
   // Deprecated: use chapters instead
   audioUrl?: string; // URL to the generated audio file (mp3)
-  rating: number; // User rating for the story
+  rating: number; // Average user rating for the story (1-5)
+  ratingCount?: number; // Number of ratings received
   createdAt: Date;
   chapters: Array<{
     title: string;

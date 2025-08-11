@@ -515,3 +515,33 @@ export async function deleteStory(req: Request, res: Response) {
     res.status(500).json({ error: 'Failed to delete story', details: err });
   }
 } 
+
+// POST /api/stories/:id/rate
+export async function rateStory(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    const { rating } = req.body as { rating: number };
+    if (!id) return res.status(400).json({ error: 'Missing story id' });
+    const numeric = Number(rating);
+    if (!Number.isFinite(numeric) || numeric < 1 || numeric > 5) {
+      return res.status(400).json({ error: 'Rating must be a number between 1 and 5' });
+    }
+    const stories = getStoriesCollection();
+    const story = await stories.findOne({ _id: new ObjectId(id) });
+    if (!story) return res.status(404).json({ error: 'Story not found' });
+
+    const currentCount = story.ratingCount || 0;
+    const currentAvg = typeof story.rating === 'number' ? story.rating : 0;
+    const newCount = currentCount + 1;
+    const newAvg = currentCount === 0 ? numeric : (currentAvg * currentCount + numeric) / newCount;
+
+    await stories.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: { rating: Number(newAvg.toFixed(2)), ratingCount: newCount } }
+    );
+
+    res.status(200).json({ success: true, rating: Number(newAvg.toFixed(2)), ratingCount: newCount });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to rate story', details: err });
+  }
+}
