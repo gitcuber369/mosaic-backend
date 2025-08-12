@@ -2,6 +2,44 @@ import { Request, Response } from 'express';
 import { stripe, STRIPE_PRODUCTS, STRIPE_WEBHOOK_SECRET } from '../stripeConfig';
 import { getUsersCollection } from '../db';
 import { ObjectId } from 'mongodb';
+// Create a Stripe Checkout session for one-time extra credits
+export async function createExtraCreditsCheckout(req: Request, res: Response) {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    const users = getUsersCollection();
+    let user = await users.findOne({ email });
+    if (!user) {
+      await users.insertOne({ email, isPremium: false, storyListenCredits: 0, createdAt: new Date() } as any);
+      user = await users.findOne({ email });
+    }
+
+    let customerId = user?.stripeCustomerId;
+    if (!customerId) {
+      const customer = await stripe.customers.create({ email });
+      customerId = customer.id;
+      await users.updateOne({ _id: user?._id }, { $set: { stripeCustomerId: customerId } });
+    }
+
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      customer: customerId,
+      payment_method_types: ['card'],
+      line_items: [{ price: STRIPE_PRODUCTS.extraCredits10.priceId, quantity: 1 }],
+      success_url: `${process.env.FRONTEND_BASE_URL || 'mosaic://success'}?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.FRONTEND_BASE_URL || 'mosaic://cancel'}`,
+      metadata: { email, priceId: STRIPE_PRODUCTS.extraCredits10.priceId, type: 'extra_credits_10' },
+    });
+
+    res.json({ url: session.url });
+  } catch (error) {
+    console.error('Error creating extra credits checkout:', error);
+    res.status(500).json({ error: 'Failed to create checkout session' });
+  }
+}
 
 // Create a setup intent for subscription
 export async function createPaymentIntent(req: Request, res: Response) {
@@ -387,6 +425,20 @@ export async function handleStripeWebhook(req: Request, res: Response) {
         const email = pi.metadata?.email;
         const type = pi.metadata?.type;
         if (email && type === 'extra_credits_10') {
+          await users.updateOne(
+            { email },
+            { $inc: { storyListenCredits: STRIPE_PRODUCTS.extraCredits10.credits, storyCreationCredits: STRIPE_PRODUCTS.extraCredits10.credits } }
+          );
+        }
+        break;
+      }
+
+      // Checkout Session completion for extra credits (browser redirect flow)
+      case 'checkout.session.completed': {
+        const session = event.data.object as any;
+        const email = session.customer_details?.email || session.metadata?.email;
+        const priceId = session.metadata?.priceId || session?.line_items?.data?.[0]?.price?.id;
+        if (email && priceId === STRIPE_PRODUCTS.extraCredits10.priceId) {
           await users.updateOne(
             { email },
             { $inc: { storyListenCredits: STRIPE_PRODUCTS.extraCredits10.credits, storyCreationCredits: STRIPE_PRODUCTS.extraCredits10.credits } }
