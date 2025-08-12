@@ -22,6 +22,7 @@ export const STRIPE_PRODUCTS = {
     priceId: process.env.STRIPE_EXTRA_CREDITS_PRICE_ID || 'price_1RvLDv16JeMmx3ntv7vyMBFK',
     name: 'MOSAIC_Extra_Credits',
     credits: 10,
+    amountCents: parseInt(process.env.EXTRA_CREDITS_AMOUNT_CENTS || '299', 10),
   },
 };
 

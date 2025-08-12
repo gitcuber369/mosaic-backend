@@ -104,6 +104,48 @@ export async function createPaymentIntent(req: Request, res: Response) {
   }
 }
 
+// Create a PaymentIntent and return client secret for PaymentSheet (one-time 10 credits)
+export async function createExtraCreditsPaymentIntent(req: Request, res: Response) {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    const users = getUsersCollection();
+    let user = await users.findOne({ email });
+    if (!user) {
+      await users.insertOne({ email, isPremium: false, storyListenCredits: 0, createdAt: new Date() } as any);
+      user = await users.findOne({ email });
+    }
+
+    // Ensure customer
+    let customerId = user?.stripeCustomerId;
+    if (!customerId) {
+      const customer = await stripe.customers.create({ email });
+      customerId = customer.id;
+      await users.updateOne({ _id: user?._id }, { $set: { stripeCustomerId: customerId } });
+    }
+
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: STRIPE_PRODUCTS.extraCredits10.amountCents,
+      currency: 'usd',
+      customer: customerId,
+      automatic_payment_methods: { enabled: true },
+      description: 'MOSAIC 10 Extra Story Credits',
+      metadata: {
+        email,
+        type: 'extra_credits_10',
+      },
+    });
+
+    res.json({ clientSecret: paymentIntent.client_secret });
+  } catch (error) {
+    console.error('Error creating extra credits payment intent:', error);
+    res.status(500).json({ error: 'Failed to create payment intent' });
+  }
+}
+
 // Create subscription after successful setup intent
 export async function createSubscription(req: Request, res: Response) {
   try {
@@ -367,6 +409,20 @@ export async function handleStripeWebhook(req: Request, res: Response) {
               { $inc: { storyListenCredits: STRIPE_PRODUCTS.extraCredits10.credits } }
             );
           }
+        }
+        break;
+      }
+
+      // PaymentSheet one-time flow using PaymentIntent
+      case 'payment_intent.succeeded': {
+        const pi = event.data.object as any;
+        const email = pi.metadata?.email;
+        const type = pi.metadata?.type;
+        if (email && type === 'extra_credits_10') {
+          await users.updateOne(
+            { email },
+            { $inc: { storyListenCredits: STRIPE_PRODUCTS.extraCredits10.credits } }
+          );
         }
         break;
       }
