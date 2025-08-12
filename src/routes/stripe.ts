@@ -5,6 +5,7 @@ import {
   cancelSubscription, 
   getSubscriptionStatus,
   createSubscription,
+  createExtraCreditsCheckout,
   debugUser,
   resetUserPremium
 } from '../controllers/stripeController';
@@ -16,6 +17,9 @@ router.post('/create-payment-intent', createPaymentIntent);
 
 // Create subscription after successful payment
 router.post('/create-subscription', createSubscription);
+
+// One-time extra credits checkout
+router.post('/extra-credits/checkout', createExtraCreditsCheckout);
 
 // Handle Stripe webhooks
 router.post('/webhook', express.raw({ type: 'application/json' }), handleStripeWebhook);

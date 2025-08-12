@@ -16,6 +16,13 @@ export const STRIPE_PRODUCTS = {
     price: 499, // $4.99 in cents
     interval: 'month'
   },
+  // One-time add-on for 10 extra story credits
+  extraCredits10: {
+    // Prefer environment variable; fallback placeholder for development
+    priceId: process.env.STRIPE_EXTRA_CREDITS_PRICE_ID || 'price_1RvLDv16JeMmx3ntv7vyMBFK',
+    name: 'MOSAIC_Extra_Credits',
+    credits: 10,
+  },
 };
 
 export default stripe; 
