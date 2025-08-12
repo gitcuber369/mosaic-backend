@@ -104,14 +104,13 @@ export async function createPaymentIntent(req: Request, res: Response) {
   }
 }
 
-// Create a PaymentIntent and return client secret for PaymentSheet (one-time 10 credits)
-export async function createExtraCreditsPaymentIntent(req: Request, res: Response) {
+// Create a SetupIntent for extra credits (to match Premium sheet). We'll charge after setup via webhook.
+export async function createExtraCreditsSetupIntent(req: Request, res: Response) {
   try {
     const { email } = req.body;
-    if (!email) {
-      return res.status(400).json({ error: 'Email is required' });
-    }
+    if (!email) return res.status(400).json({ error: 'Email is required' });
 
+    // Ensure user and customer
     const users = getUsersCollection();
     let user = await users.findOne({ email });
     if (!user) {
@@ -119,7 +118,6 @@ export async function createExtraCreditsPaymentIntent(req: Request, res: Respons
       user = await users.findOne({ email });
     }
 
-    // Ensure customer
     let customerId = user?.stripeCustomerId;
     if (!customerId) {
       const customer = await stripe.customers.create({ email });
@@ -127,22 +125,20 @@ export async function createExtraCreditsPaymentIntent(req: Request, res: Respons
       await users.updateOne({ _id: user?._id }, { $set: { stripeCustomerId: customerId } });
     }
 
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: STRIPE_PRODUCTS.extraCredits10.amountCents,
-      currency: 'usd',
+    const setupIntent = await stripe.setupIntents.create({
       customer: customerId,
-      automatic_payment_methods: { enabled: true },
-      description: 'MOSAIC 10 Extra Story Credits',
+      payment_method_types: ['card'],
+      usage: 'off_session',
       metadata: {
         email,
         type: 'extra_credits_10',
-      },
+      }
     });
 
-    res.json({ clientSecret: paymentIntent.client_secret });
+    res.json({ clientSecret: setupIntent.client_secret, setupIntentId: setupIntent.id });
   } catch (error) {
-    console.error('Error creating extra credits payment intent:', error);
-    res.status(500).json({ error: 'Failed to create payment intent' });
+    console.error('Error creating extra credits setup intent:', error);
+    res.status(500).json({ error: 'Failed to create setup intent' });
   }
 }
 
@@ -218,19 +214,16 @@ export async function createSubscription(req: Request, res: Response) {
   }
 }
 
-// Create a Stripe Checkout session for one-time extra credits
-export async function createExtraCreditsCheckout(req: Request, res: Response) {
+// Create one-time PaymentIntent for 10 extra credits (PaymentSheet)
+export async function createExtraCreditsPaymentIntent(req: Request, res: Response) {
   try {
     const { email } = req.body;
-    if (!email) {
-      return res.status(400).json({ error: 'Email is required' });
-    }
+    if (!email) return res.status(400).json({ error: 'Email is required' });
 
-    // Ensure customer exists or create one
+    // Ensure user and customer
     const users = getUsersCollection();
     let user = await users.findOne({ email });
     if (!user) {
-      // Create a bare user record if it does not exist yet
       await users.insertOne({ email, isPremium: false, storyListenCredits: 0, createdAt: new Date() } as any);
       user = await users.findOne({ email });
     }
@@ -242,29 +235,19 @@ export async function createExtraCreditsCheckout(req: Request, res: Response) {
       await users.updateOne({ _id: user?._id }, { $set: { stripeCustomerId: customerId } });
     }
 
-    const session = await stripe.checkout.sessions.create({
-      mode: 'payment',
+    const pi = await stripe.paymentIntents.create({
+      amount: STRIPE_PRODUCTS.extraCredits10.amountCents,
+      currency: 'usd',
       customer: customerId,
-      payment_method_types: ['card'],
-      line_items: [
-        {
-          price: STRIPE_PRODUCTS.extraCredits10.priceId,
-          quantity: 1,
-        },
-      ],
-      success_url: `${process.env.FRONTEND_BASE_URL || 'mosaic://success'}?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.FRONTEND_BASE_URL || 'mosaic://cancel'}`,
-      metadata: {
-        email,
-        priceId: STRIPE_PRODUCTS.extraCredits10.priceId,
-        type: 'extra_credits_10',
-      },
+      automatic_payment_methods: { enabled: true },
+      description: 'MOSAIC 10 Extra Story Credits',
+      metadata: { email, type: 'extra_credits_10' },
     });
 
-    res.json({ url: session.url });
+    res.json({ clientSecret: pi.client_secret });
   } catch (error) {
-    console.error('Error creating extra credits checkout:', error);
-    res.status(500).json({ error: 'Failed to create checkout session' });
+    console.error('Error creating extra credits PI:', error);
+    res.status(500).json({ error: 'Failed to create payment intent' });
   }
 }
 
@@ -396,24 +379,7 @@ export async function handleStripeWebhook(req: Request, res: Response) {
         }
         break;
 
-      // One-time extra credits purchase (Checkout Session)
-      case 'checkout.session.completed': {
-        const session = event.data.object as any;
-        const email = session.customer_details?.email || session.metadata?.email;
-        const priceId = session.metadata?.priceId || (session.line_items?.data?.[0]?.price?.id);
-        if (email && priceId) {
-          // If the price matches our extra-credits product, grant credits
-          if (priceId === STRIPE_PRODUCTS.extraCredits10.priceId) {
-            await users.updateOne(
-              { email },
-              { $inc: { storyListenCredits: STRIPE_PRODUCTS.extraCredits10.credits } }
-            );
-          }
-        }
-        break;
-      }
-
-      // PaymentSheet one-time flow using PaymentIntent
+      // Grant credits when the one-time PaymentIntent succeeds
       case 'payment_intent.succeeded': {
         const pi = event.data.object as any;
         const email = pi.metadata?.email;
@@ -474,6 +440,28 @@ export async function handleStripeWebhook(req: Request, res: Response) {
             console.error('Payment Method ID:', setupIntent.payment_method);
             const user = await users.findOne({ email: setupEmail });
             console.error('Customer ID:', user?.stripeCustomerId);
+          }
+        }
+
+        // Extra credits flow using SetupIntent: charge immediately with saved method
+        if (setupEmail && setupIntent.metadata?.type === 'extra_credits_10') {
+          try {
+            const usersCol = getUsersCollection();
+            const user = await usersCol.findOne({ email: setupEmail });
+            if (user?.stripeCustomerId) {
+              await stripe.paymentIntents.create({
+                amount: STRIPE_PRODUCTS.extraCredits10.amountCents,
+                currency: 'usd',
+                customer: user.stripeCustomerId,
+                payment_method: setupIntent.payment_method,
+                off_session: true,
+                confirm: true,
+                description: 'MOSAIC 10 Extra Story Credits',
+                metadata: { email: setupEmail, type: 'extra_credits_10' },
+              });
+            }
+          } catch (err) {
+            console.error('Error charging for extra credits after setup:', err);
           }
         }
         break;

@@ -5,8 +5,8 @@ import {
   cancelSubscription, 
   getSubscriptionStatus,
   createSubscription,
-  createExtraCreditsCheckout,
   createExtraCreditsPaymentIntent,
+  createExtraCreditsSetupIntent,
   debugUser,
   resetUserPremium
 } from '../controllers/stripeController';
@@ -19,11 +19,11 @@ router.post('/create-payment-intent', createPaymentIntent);
 // Create subscription after successful payment
 router.post('/create-subscription', createSubscription);
 
-// One-time extra credits checkout
-router.post('/extra-credits/checkout', createExtraCreditsCheckout);
-
-// PaymentSheet flow for extra credits (client secret)
+// Create one-time PaymentIntent for 10 extra credits
 router.post('/extra-credits/payment-intent', createExtraCreditsPaymentIntent);
+
+// Create SetupIntent for 10 extra credits (to show same sheet as Premium)
+router.post('/extra-credits/setup-intent', createExtraCreditsSetupIntent);
 
 // Handle Stripe webhooks
 router.post('/webhook', express.raw({ type: 'application/json' }), handleStripeWebhook);
