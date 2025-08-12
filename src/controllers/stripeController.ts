@@ -297,7 +297,8 @@ export async function handleStripeWebhook(req: Request, res: Response) {
                 premiumExpiresAt: new Date(newSubscription.current_period_end * 1000)
               },
               $inc: {
-                storyListenCredits: 30
+                storyListenCredits: 30,
+                storyCreationCredits: 30
               }
             }
           );
@@ -326,7 +327,8 @@ export async function handleStripeWebhook(req: Request, res: Response) {
                     premiumExpiresAt: new Date(updatedSubscription.current_period_end * 1000)
                   },
                   $inc: {
-                    storyListenCredits: 30
+                    storyListenCredits: 30,
+                    storyCreationCredits: 30
                   }
                 }
               );
@@ -387,7 +389,7 @@ export async function handleStripeWebhook(req: Request, res: Response) {
         if (email && type === 'extra_credits_10') {
           await users.updateOne(
             { email },
-            { $inc: { storyListenCredits: STRIPE_PRODUCTS.extraCredits10.credits } }
+            { $inc: { storyListenCredits: STRIPE_PRODUCTS.extraCredits10.credits, storyCreationCredits: STRIPE_PRODUCTS.extraCredits10.credits } }
           );
         }
         break;
