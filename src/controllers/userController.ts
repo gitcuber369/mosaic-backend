@@ -312,3 +312,19 @@ export async function getUserListeningHistory(req: Request, res: Response) {
     res.status(500).json({ error: 'Failed to get listening history', details: err });
   }
 } 
+
+// Delete user account by email
+export async function deleteUserAccount(req: Request, res: Response) {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email is required' });
+    const users = getUsersCollection();
+    const result = await users.deleteOne({ email });
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.status(200).json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete user', details: err });
+  }
+} 

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { createUser, getUserByEmail, loginUser } from '../controllers/userController';
+import { createUser, getUserByEmail, loginUser, deleteUserAccount } from '../controllers/userController';
 import { upgradeUserToPremium, buyStoryCredits, monthlyResetCredits, deductListenCreditForChapter, getUserListeningHistory } from '../controllers/userController';
 
 const router = Router();
@@ -21,6 +21,9 @@ router.post('/buy-credits', buyStoryCredits);
 
 // POST /api/users/monthly-reset
 router.post('/monthly-reset', monthlyResetCredits);
+
+// POST /api/users/delete-account
+router.post('/delete-account', deleteUserAccount);
 
 // RevenueCat webhook removed - replaced with Stripe webhook
 
