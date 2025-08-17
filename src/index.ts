@@ -16,8 +16,6 @@ import elevenlabsRouter from './routes/elevenlabs';
 import supportRouter from './routes/support';
 import stripeRouter from './routes/stripe';
 import { connectToDatabase } from './db';
-// @ts-ignore
-import { swaggerUi, specs } from './swaggerConfig';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -40,9 +38,6 @@ app.use('/api/elevenlabs', elevenlabsRouter);
 app.use('/api/support', supportRouter);
 app.use('/api/stripe', stripeRouter);
 
-// Serve Swagger UI
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs));
-
 connectToDatabase()
   .then(() => {
     app.listen(PORT, () => {
@@ -52,4 +47,4 @@ connectToDatabase()
   .catch((err) => {
     console.error('Failed to connect to MongoDB', err);
     process.exit(1);
-  });
+  }); 
