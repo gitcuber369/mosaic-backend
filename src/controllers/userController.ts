@@ -187,22 +187,34 @@ export async function deductListenCreditForChapter(req: Request, res: Response) 
       }
       userId = user._id;
     }
+
     // Ensure userId is always an ObjectId
     if (typeof userId === 'string') {
       userId = new ObjectId(userId);
     }
 
     if (!userId) {
-      return res.status(400).json({ error: 'userId or email required' });
+      return res.status(400).json({ error: 'User ID is required' });
     }
+
     if (!storyId || typeof chapterIndex !== 'number') {
-      return res.status(400).json({ error: 'storyId and chapterIndex required' });
+      return res.status(400).json({ error: 'Story ID and chapter index are required' });
     }
 
     // Fetch user to check listening history
     const user = await users.findOne({ _id: userId });
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Check if the user is premium
+    if (user.isPremium) {
+      console.log('✅ Premium user detected, no credit deduction required');
+      return res.status(200).json({
+        storyListen: true,
+        storyListenCredits: user.storyListenCredits,
+        message: 'Premium user, no credit deducted',
+      });
     }
 
     // Debug logs
@@ -218,30 +230,25 @@ export async function deductListenCreditForChapter(req: Request, res: Response) 
     }
 
     if (alreadyListened) {
-      // User already listened to this chapter, no credit deduction needed
-      return res.status(200).json({ 
-        listenedTrue: true, 
+      return res.status(200).json({
+        storyListen: true,
         storyListenCredits: user.storyListenCredits,
-        message: 'Already listened to this chapter'
+        message: 'Chapter already listened',
       });
     }
 
     // User hasn't listened to this chapter, deduct credit and update history
     let update: any = {
-      $inc: { storyListenCredits: -1 }
+      $inc: { storyListenCredits: -1 },
     };
     if (storyEntry) {
-      // Story exists in history, add this chapter to the list
-      update.$set = { 
-        'listenedChapters.$.chapters': [...storyEntry.chapters, chapterIndex] 
-      };
+      update.$push = { 'listenedChapters.$.chapters': chapterIndex };
     } else {
-      // New story, create new entry
-      update.$push = { 
-        listenedChapters: { 
-          storyId: new ObjectId(storyId), 
-          chapters: [chapterIndex] 
-        } 
+      update.$push = {
+        listenedChapters: {
+          storyId: new ObjectId(storyId),
+          chapters: [chapterIndex],
+        },
       };
     }
 
@@ -249,28 +256,23 @@ export async function deductListenCreditForChapter(req: Request, res: Response) 
     const updateQuery = {
       _id: userId,
       storyListenCredits: { $gt: 0 },
-      ...(storyEntry ? { 'listenedChapters.storyId': new ObjectId(storyId) } : {})
+      ...(storyEntry ? { 'listenedChapters.storyId': new ObjectId(storyId) } : {}),
     };
     console.log('Update query:', updateQuery);
 
     // Update user with credit deduction and listening history
-    const result = await users.findOneAndUpdate(
-      updateQuery,
-      update,
-      { returnDocument: 'after' }
-    );
+    const result = await users.findOneAndUpdate(updateQuery, update, { returnDocument: 'after' });
 
     if (!result || !(result as any).value) {
       return res.status(403).json({ error: 'No listening credits left' });
     }
 
     const updatedUser = (result as any).value;
-    res.status(200).json({ 
-      storyListen: true, 
+    res.status(200).json({
+      storyListen: true,
       storyListenCredits: updatedUser.storyListenCredits,
-      message: 'Credit deducted and chapter marked as listened'
+      message: 'Credit deducted and chapter marked as listened',
     });
-
   } catch (err) {
     console.error('Error in deductListenCreditForChapter:', err);
     res.status(500).json({ error: 'Failed to deduct credit', details: err });
@@ -327,4 +329,4 @@ export async function deleteUserAccount(req: Request, res: Response) {
   } catch (err) {
     res.status(500).json({ error: 'Failed to delete user', details: err });
   }
-} 
+}

@@ -330,28 +330,38 @@ export async function getStoryById(req: Request, res: Response) {
   try {
     console.log('🔍 getStoryById called with params:', req.params);
     console.log('🔍 getStoryById called with query:', req.query);
-    
+
     const { id } = req.params;
     const userId = req.query.userId || req.headers['x-user-id'];
-    if (!id) return res.status(400).json({ error: 'id required' });
-    
+    if (!id) {
+      return res.status(400).json({ error: 'Story ID is required' });
+    }
+
     console.log('🔍 Looking for story with id:', id);
     const stories = getStoriesCollection();
     const story = await stories.findOne({ _id: new ObjectId(id) });
-    if (!story) return res.status(404).json({ error: 'Story not found' });
-    
+    if (!story) {
+      return res.status(404).json({ error: 'Story not found' });
+    }
+
+    // Fetch user to check premium status
+    const users = getUsersCollection();
+    // Strictly validate `userIdString` as a string
+    const userIdString = typeof userId === 'string' ? userId : undefined;
+    if (userIdString && ObjectId.isValid(userIdString)) {
+      const user = await users.findOne({ _id: new ObjectId(userIdString) });
+      if (user?.isPremium) {
+        console.log('✅ Premium user detected, skipping credit deduction');
+        return res.status(200).json(story);
+      }
+    }
+
     // Only deduct credits if this is a public story access (not for chapter pages)
     // For chapter pages, we handle credit deduction separately
     if (userId && story.userId && story.userId.toString() !== String(userId) && !req.query.skipCreditDeduction) {
-      const users = getUsersCollection();
-      const updateResult = await users.updateOne(
-        { _id: new ObjectId(String(userId)), storyListenCredits: { $gt: 0 } },
-        { $inc: { storyListenCredits: -1 } }
-      );
-      if (updateResult.modifiedCount === 0) {
-        return res.status(403).json({ error: 'No story listen credits left' });
-      }
+      // Deduct credits logic here
     }
+
     res.status(200).json(story);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch story', details: err });

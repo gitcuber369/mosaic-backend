@@ -227,7 +227,7 @@ router.post('/delete-account', deleteUserAccount);
  *                 type: integer
  *     responses:
  *       200:
- *         description: Credit deducted successfully
+ *         description: Credit deducted successfully or skipped for premium users
  *       400:
  *         description: userId or email, storyId, and chapterIndex are required
  *       403:
@@ -237,7 +237,6 @@ router.post('/delete-account', deleteUserAccount);
  *       500:
  *         description: Failed to deduct credit
  */
-// POST /api/users/deduct-listen-credit-chapter
 router.post('/deduct-listen-credit-chapter', deductListenCreditForChapter);
 
 /**
