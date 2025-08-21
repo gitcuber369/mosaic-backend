@@ -111,6 +111,7 @@ A `User` represents an individual using the platform, with details about their p
 | **listenedChapters**  | Array      | List of chapters the user has listened to, grouped by story, containing:   |
 | - **storyId**         | ObjectId   | Reference to the `Story` schema.                                           |
 | - **chapters**        | Array      | Array of chapter indices the user has listened to.                         |
+| - **lastPlayedAt**    | Date       | (optional) Timestamp when the user last listened to the story (per-story). |
 | **stripeCustomerId**  | string     | Stripe customer ID for payment processing.                                 |
 | **stripeSubscriptionId** | string  | Stripe subscription ID for the user's premium plan.                        |
 | **premiumExpiresAt**  | Date       | Expiration date of the user's premium subscription.                        |
@@ -135,7 +136,7 @@ export interface User {
   createdAt: Date;
   storyCreationCredits?: number; // Deprecated - now using storyListenCredits for both generation and listening
   storyListenCredits: number;
-  listenedChapters?: Array<{ storyId: ObjectId; chapters: number[] }>;
+  listenedChapters?: Array<{ storyId: ObjectId; chapters: number[]; lastPlayedAt?: Date }>;
   stripeCustomerId?: string;
   stripeSubscriptionId?: string;
   premiumExpiresAt?: Date;

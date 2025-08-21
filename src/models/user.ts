@@ -16,7 +16,7 @@ export interface User {
   createdAt: Date;
   storyCreationCredits?: number; // Deprecated - now using storyListenCredits for both generation and listening
   storyListenCredits: number;
-  listenedChapters?: Array<{ storyId: ObjectId; chapters: number[] }>;
+  listenedChapters?: Array<{ storyId: ObjectId; chapters: number[]; lastPlayedAt?: Date }>;
   // Stripe-related fields
   stripeCustomerId?: string;
   stripeSubscriptionId?: string;

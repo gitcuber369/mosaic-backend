@@ -209,12 +209,49 @@ export async function deductListenCreditForChapter(req: Request, res: Response) 
 
     // Check if the user is premium
     if (user.isPremium) {
-      console.log('✅ Premium user detected, no credit deduction required');
-      return res.status(200).json({
-        storyListen: true,
-        storyListenCredits: user.storyListenCredits,
-        message: 'Premium user, no credit deducted',
-      });
+      // Premium users should still have their listened history recorded,
+      // but no credits should be deducted.
+      console.log('✅ Premium user detected, record listened chapter without deducting credits');
+
+      let listenedChapters = user.listenedChapters || [];
+      let storyEntry = listenedChapters.find((entry: any) => entry.storyId?.toString() === storyId);
+
+      if (storyEntry) {
+        // If chapter already recorded, return OK. Otherwise add chapter and update lastPlayedAt.
+        if (storyEntry.chapters.includes(chapterIndex)) {
+          return res.status(200).json({
+            storyListen: true,
+            storyListenCredits: user.storyListenCredits,
+            message: 'Chapter already listened',
+          });
+        }
+
+        const result = await users.findOneAndUpdate(
+          { _id: userId, 'listenedChapters.storyId': new ObjectId(storyId) },
+          { $addToSet: { 'listenedChapters.$.chapters': chapterIndex }, $set: { 'listenedChapters.$.lastPlayedAt': new Date() } },
+          { returnDocument: 'after' }
+        );
+
+        const updatedUser = (result as any).value || user;
+        return res.status(200).json({
+          storyListen: true,
+          storyListenCredits: updatedUser.storyListenCredits,
+          message: 'Premium user, listened chapter recorded',
+        });
+      } else {
+        const result = await users.findOneAndUpdate(
+          { _id: userId },
+          { $push: { listenedChapters: { storyId: new ObjectId(storyId), chapters: [chapterIndex], lastPlayedAt: new Date() } } },
+          { returnDocument: 'after' }
+        );
+
+        const updatedUser = (result as any).value || user;
+        return res.status(200).json({
+          storyListen: true,
+          storyListenCredits: updatedUser.storyListenCredits,
+          message: 'Premium user, listened chapter recorded',
+        });
+      }
     }
 
     // Debug logs
@@ -242,12 +279,15 @@ export async function deductListenCreditForChapter(req: Request, res: Response) 
       $inc: { storyListenCredits: -1 },
     };
     if (storyEntry) {
-      update.$push = { 'listenedChapters.$.chapters': chapterIndex };
+      // Add chapter if missing and update lastPlayedAt
+      update.$addToSet = { 'listenedChapters.$.chapters': chapterIndex };
+      update.$set = { 'listenedChapters.$.lastPlayedAt': new Date() };
     } else {
       update.$push = {
         listenedChapters: {
           storyId: new ObjectId(storyId),
           chapters: [chapterIndex],
+          lastPlayedAt: new Date(),
         },
       };
     }
