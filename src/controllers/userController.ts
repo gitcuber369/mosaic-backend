@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import { getUsersCollection } from '../db';
+import { getStoriesCollection } from '../db';
 import type { User } from '../models/user';
 import { ObjectId } from 'mongodb';
 import crypto from 'crypto';
@@ -343,10 +344,21 @@ export async function getUserListeningHistory(req: Request, res: Response) {
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
+    // Build a list of unique story IDs the user has listened to
+    const listenedChapters = user.listenedChapters || [];
+    const storyIdStrings = Array.from(new Set(listenedChapters.map((e: any) => e.storyId?.toString()).filter(Boolean)));
+
+    let listenedStories: any[] = [];
+    if (storyIdStrings.length > 0) {
+      const storiesCollection = getStoriesCollection();
+      const objIds = storyIdStrings.map((id) => new ObjectId(id));
+      const stories = await storiesCollection.find({ _id: { $in: objIds } }).toArray();
+      listenedStories = stories.map((s: any) => ({ ...s, _id: s._id.toString() }));
+    }
 
     res.status(200).json({
-      listenedChapters: user.listenedChapters || [],
-      storyListenCredits: user.storyListenCredits
+      listenedStories,
+      storyListenCredits: user.storyListenCredits,
     });
 
   } catch (err) {
