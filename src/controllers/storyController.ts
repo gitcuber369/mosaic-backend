@@ -204,7 +204,9 @@ export async function createStory(req: Request, res: Response) {
       const imageRes = await openai.images.generate({
         prompt: imagePrompt,
         n: 1,
-        size: '512x512',
+        model : 'dall-e-3',
+        size: '1024x1024',
+        quality: 'hd',
         response_format: 'url',
       });
       console.log('📸 Image generation response:', imageRes);
