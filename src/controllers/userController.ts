@@ -353,7 +353,17 @@ export async function getUserListeningHistory(req: Request, res: Response) {
       const storiesCollection = getStoriesCollection();
       const objIds = storyIdStrings.map((id) => new ObjectId(id));
       const stories = await storiesCollection.find({ _id: { $in: objIds } }).toArray();
-      listenedStories = stories.map((s: any) => ({ ...s, _id: s._id.toString() }));
+      // Attach listenedEntry (with lastPlayedAt) to each story
+      listenedStories = stories.map((s: any) => {
+        const listenedEntry = listenedChapters.find((e: any) => e.storyId?.toString() === s._id.toString());
+        return { ...s, _id: s._id.toString(), listenedEntry };
+      });
+      // Sort by lastPlayedAt descending (most recent first)
+      listenedStories.sort((a, b) => {
+        const aTime = a.listenedEntry?.lastPlayedAt ? new Date(a.listenedEntry.lastPlayedAt).getTime() : 0;
+        const bTime = b.listenedEntry?.lastPlayedAt ? new Date(b.listenedEntry.lastPlayedAt).getTime() : 0;
+        return bTime - aTime;
+      });
     }
 
     res.status(200).json({
