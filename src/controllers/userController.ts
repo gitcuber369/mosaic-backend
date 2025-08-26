@@ -275,15 +275,11 @@ export async function deductListenCreditForChapter(req: Request, res: Response) 
       });
     }
 
-    // User hasn't listened to this chapter, deduct credit and update history
-    let update: any = {
-      $inc: { storyListenCredits: -1 },
-    };
-    if (storyEntry) {
-      // Add chapter if missing and update lastPlayedAt
-      update.$addToSet = { 'listenedChapters.$.chapters': chapterIndex };
-      update.$set = { 'listenedChapters.$.lastPlayedAt': new Date() };
-    } else {
+    let update: any = {};
+    let updateQuery: any = { _id: userId };
+    // If this is the first time listening to any chapter of this story, deduct credit
+    if (!storyEntry) {
+      update.$inc = { storyListenCredits: -1 };
       update.$push = {
         listenedChapters: {
           storyId: new ObjectId(storyId),
@@ -291,17 +287,16 @@ export async function deductListenCreditForChapter(req: Request, res: Response) 
           lastPlayedAt: new Date(),
         },
       };
+      updateQuery.storyListenCredits = { $gt: 0 };
+    } else {
+      // Only update chapters and lastPlayedAt, do not deduct credit
+      update.$addToSet = { 'listenedChapters.$.chapters': chapterIndex };
+      update.$set = { 'listenedChapters.$.lastPlayedAt': new Date() };
+      updateQuery['listenedChapters.storyId'] = new ObjectId(storyId);
     }
-
-    // Debug log for update query
-    const updateQuery = {
-      _id: userId,
-      storyListenCredits: { $gt: 0 },
-      ...(storyEntry ? { 'listenedChapters.storyId': new ObjectId(storyId) } : {}),
-    };
     console.log('Update query:', updateQuery);
 
-    // Update user with credit deduction and listening history
+    // Update user with or without credit deduction
     const result = await users.findOneAndUpdate(updateQuery, update, { returnDocument: 'after' });
 
     if (!result || !(result as any).value) {
@@ -312,7 +307,7 @@ export async function deductListenCreditForChapter(req: Request, res: Response) 
     res.status(200).json({
       storyListen: true,
       storyListenCredits: updatedUser.storyListenCredits,
-      message: 'Credit deducted and chapter marked as listened',
+      message: storyEntry ? 'Chapter marked as listened (no credit deducted)' : 'Credit deducted and story marked as listened',
     });
   } catch (err) {
     console.error('Error in deductListenCreditForChapter:', err);

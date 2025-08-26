@@ -21,7 +21,7 @@ export async function generateChapterAudio(req: Request, res: Response) {
         {
           model: 'tts-1',
           input: chapterText,
-          voice: 'alloy',
+          voice: 'breeze',
           response_format: 'mp3'
         },
         {
