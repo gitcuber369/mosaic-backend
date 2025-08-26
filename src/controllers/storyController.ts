@@ -113,90 +113,69 @@ export async function createStory(req: Request, res: Response) {
     console.log('✅ User has sufficient credits, proceeding with story generation');
 
 
-    // Map age group to number of chapters
-    const ageGroupToChapters: Record<string, number> = {
-      '0-3': 1,
-      '4-6': 2,
-      '7-9': 3,
-      '10-12': 4,
-      '12+': 5,
-    };
-    const numChapters = ageGroupToChapters[ageGroup] || 3;
 
-    // Generate Introduction
-    let introTitle = '', introDescription = '', introText = '';
-    const chapterTitles: string[] = [];
-    const chapterDescriptions: string[] = [];
-    const chapterTexts: string[] = [];
-    // 1. Introduction
+    // Map age group to number of chapters and prompt style
+    const ageGroupToChapters: Record<string, { count: number, prompt: string }> = {
+      '0-3': {
+        count: 1,
+        prompt: `Write a very short, simple, and gentle story for a toddler (age 0-3). Use one chapter, 200-300 characters, with lots of repetition, simple words, and a warm, soothing tone. The main character is a ${gender?.toLowerCase() || ''} named ${name}, described as "${character}". The story should encourage curiosity and comfort. Return the story as a JSON object with a title, author, and a single chapter (with title, description, and text).`
+      },
+      '4-6': {
+        count: 2,
+        prompt: `Write a two-chapter story for a young child (age 4-6). Each chapter should be 400-600 characters, imaginative, and easy to follow. The main character is a ${gender?.toLowerCase() || ''} named ${name}, described as "${character}". The story should encourage kindness, curiosity, and gentle problem-solving. Return the story as a JSON object with a title, author, and two chapters (with title, description, and text).`
+      },
+      '7-9': {
+        count: 3,
+        prompt: `Write a three-chapter story for a child (age 7-9). Each chapter should be 700-900 characters, engaging, and age-appropriate. The main character is a ${gender?.toLowerCase() || ''} named ${name}, described as "${character}". The story should encourage creativity, friendship, and curiosity. Return the story as a JSON object with a title, author, and three chapters (with title, description, and text).`
+      },
+      '10-12': {
+        count: 4,
+        prompt: `Write a four-chapter story for a pre-teen (age 10-12). Each chapter should be 900-1200 characters, imaginative, and suitable for bedtime or classroom reading. The main character is a ${gender?.toLowerCase() || ''} named ${name}, described as "${character}". The story should encourage problem-solving, kindness, and courage. The last chapter should resolve the story with a positive moral or lesson. Return the story as a JSON object with a title, author, and four chapters (with title, description, and text).`
+      },
+      '12+': {
+        count: 5,
+        prompt: `Write a five-chapter story for a young teen (age 12+). Each chapter should be 1200-1500 characters, engaging, and age-appropriate. The main character is a ${gender?.toLowerCase() || ''} named ${name}, described as "${character}". The story should encourage empathy, resilience, and self-discovery. The last chapter should resolve the story with a positive moral or lesson. Return the story as a JSON object with a title, author, and five chapters (with title, description, and text).`
+      },
+    };
+    const group = ageGroupToChapters[ageGroup] || ageGroupToChapters['7-9'];
+    const numChapters = group.count;
+    const storyPrompt = group.prompt + `\n\nReturn ONLY the JSON object, do not include any extra commentary or formatting.`;
+
+    // Compose the OpenAI call for the full story
+    let storyJson: any = null;
     try {
-      const prompt = `Write the Introduction for a creative, engaging, and age-appropriate children's story in the ${style} style. The Introduction should be about 500 characters.\n\nInvent a creative, fitting name for the main character (do NOT use the user's name). The story is for a ${ageGroup} ${gender.toLowerCase()} child. This character is described as "${character}" and enjoys ${hobbies.join(", ")}.\n\nThe Introduction should introduce the main character's world and personality.\n\nPlease provide:\n1. A creative title for this introduction (2-4 words)\n2. A brief description (1 sentence, 10-15 words)\n3. The introduction text (about 500 characters)\n\nFormat your response as:\nTITLE: ...\nDESCRIPTION: ...\nTEXT: ...`;
       const completion = await openai.chat.completions.create({
-        model: 'gpt-3.5-turbo',
+        model: 'gpt-4o-mini',
         messages: [
           { role: 'system', content: 'You are a creative children\'s story writer.' },
-          { role: 'user', content: prompt },
+          { role: 'user', content: storyPrompt },
         ],
-        max_tokens: 800,
+        max_tokens: 4000,
         temperature: 0.8,
       });
       if (completion.choices && completion.choices[0] && completion.choices[0].message && typeof completion.choices[0].message.content === 'string') {
         const content = completion.choices[0].message.content.trim();
-        const titleMatch = content.match(/TITLE:\s*(.+)/i);
-        const descriptionMatch = content.match(/DESCRIPTION:\s*(.+)/i);
-        const textMatch = content.match(/TEXT:\s*([\s\S]+)/i);
-        introTitle = titleMatch ? titleMatch[1].trim() : 'Introduction';
-        introDescription = descriptionMatch ? descriptionMatch[1].trim() : 'Meet our main character';
-        introText = textMatch ? textMatch[1].trim() : content;
-      } else {
-        introTitle = 'Introduction';
-        introDescription = 'Meet our main character';
-        introText = '';
+        try {
+          storyJson = JSON.parse(content);
+        } catch (jsonErr) {
+          // Try to extract JSON from the response if extra text is present
+          const jsonMatch = content.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            storyJson = JSON.parse(jsonMatch[0]);
+          } else {
+            throw jsonErr;
+          }
+        }
       }
     } catch (err) {
-      console.error('❌ Error generating introduction:', err);
-      return res.status(500).json({ error: 'Failed to generate introduction', details: err });
+      console.error('❌ Error generating full story JSON:', err);
+      return res.status(500).json({ error: 'Failed to generate story', details: err });
+    }
+    if (!storyJson || !Array.isArray(storyJson.chapters) || storyJson.chapters.length !== numChapters) {
+      return res.status(500).json({ error: 'Story JSON format invalid or chapter count mismatch', details: storyJson });
     }
 
-    // Generate chapters dynamically based on numChapters
-    for (let i = 0; i < numChapters; i++) {
-      let chapterName = `Chapter ${i + 1}`;
-      let chapterTheme = '';
-      if (i === 0) chapterTheme = 'The Challenge';
-      else if (i === 1) chapterTheme = 'The Journey';
-      else if (i === 2) chapterTheme = 'The Lesson';
-      else chapterTheme = `Adventure Part ${i + 1}`;
-      try {
-        const prompt = `Write ${chapterName} (${chapterTheme}) for a creative, engaging, and age-appropriate children's story in the ${style} style. This chapter should be about 1800 characters.\n\nInvent a creative, fitting name for the main character (do NOT use the user's name). The story is for a ${ageGroup} ${gender.toLowerCase()} child. This character is described as "${character}" and enjoys ${hobbies.join(", ")}.\n\nPlease provide:\n1. A creative title for this chapter (2-4 words)\n2. A brief description (1 sentence, 10-15 words)\n3. The chapter text (about 1800 characters)\n\nFormat your response as:\nTITLE: ...\nDESCRIPTION: ...\nTEXT: ...`;
-        const completion = await openai.chat.completions.create({
-          model: 'gpt-3.5-turbo',
-          messages: [
-            { role: 'system', content: 'You are a creative children\'s story writer.' },
-            { role: 'user', content: prompt },
-          ],
-          max_tokens: 2000,
-          temperature: 0.8,
-        });
-        if (completion.choices && completion.choices[0] && completion.choices[0].message && typeof completion.choices[0].message.content === 'string') {
-          const content = completion.choices[0].message.content.trim();
-          const titleMatch = content.match(/TITLE:\s*(.+)/i);
-          const descriptionMatch = content.match(/DESCRIPTION:\s*(.+)/i);
-          const textMatch = content.match(/TEXT:\s*([\s\S]+)/i);
-          chapterTitles.push(titleMatch ? titleMatch[1].trim() : chapterName);
-          chapterDescriptions.push(descriptionMatch ? descriptionMatch[1].trim() : chapterTheme);
-          chapterTexts.push(textMatch ? textMatch[1].trim() : content);
-        } else {
-          chapterTitles.push(chapterName);
-          chapterDescriptions.push(chapterTheme);
-          chapterTexts.push('');
-        }
-      } catch (err) {
-        console.error(`❌ Error generating chapter ${i + 1}:`, err);
-        return res.status(500).json({ error: `Failed to generate chapter ${i + 1}`, details: err });
-      }
-    }
-
-    // 3. Generate image with DALL-E (OpenAI)
+    // 3. Generate image with DALL-E (OpenAI) for the main character/scene
     console.log('🎨 Starting image generation with gpt-image-1...');
     let imageUrl = '';
     try {
@@ -209,14 +188,11 @@ export async function createStory(req: Request, res: Response) {
         quality: 'hd',
         response_format: 'url',
       });
-      console.log('📸 Image generation response:', imageRes);
       if (imageRes && Array.isArray(imageRes.data) && imageRes.data[0] && typeof imageRes.data[0].url === 'string') {
-        console.log('✅ Image generated successfully, downloading...');
         const imageBufferRes = await axios.get(imageRes.data[0].url, { responseType: 'arraybuffer' });
         const imageBuffer = Buffer.from(imageBufferRes.data);
-        console.log('📥 Image downloaded, uploading to Cloudinary...');
         imageUrl = await new Promise((resolve, reject) => {
-          const stream = cloudinary.uploader.upload(`data:image/png;base64,${imageBuffer.toString('base64')}`,
+          cloudinary.uploader.upload(`data:image/png;base64,${imageBuffer.toString('base64')}`,
             { resource_type: 'image', format: 'png', folder: 'stories_images' },
             (error, result) => {
               if (error) return reject(error);
@@ -225,9 +201,7 @@ export async function createStory(req: Request, res: Response) {
             }
           );
         });
-        console.log('✅ Image uploaded to Cloudinary:', imageUrl);
       } else {
-        console.log('⚠️ No image data in response, using empty image URL');
         imageUrl = '';
       }
     } catch (err) {
@@ -235,56 +209,18 @@ export async function createStory(req: Request, res: Response) {
       return res.status(500).json({ error: 'Failed to generate or upload image', details: err });
     }
 
-
-    // 4. Generate audio for Introduction
-    console.log('🎵 Starting Introduction audio generation...');
-    let introAudioUrl = '';
-    try {
-      const openaiTTSRes = await axios.post(
-        'https://api.openai.com/v1/audio/speech',
-        {
-          model: 'tts-1',
-          input: introText,
-          voice: 'alloy',
-          response_format: 'mp3'
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          responseType: 'arraybuffer'
-        }
-      );
-      const audioBuffer = Buffer.from(openaiTTSRes.data);
-      introAudioUrl = await new Promise((resolve, reject) => {
-        cloudinary.uploader.upload(
-          `data:audio/mp3;base64,${audioBuffer.toString('base64')}`,
-          { resource_type: 'video', format: 'mp3', folder: 'stories_audio' },
-          (error, result) => {
-            if (error) return reject(error);
-            if (!result) return reject(new Error('No result from Cloudinary upload'));
-            resolve(result.secure_url);
-          }
-        );
-      });
-      console.log('✅ Introduction audio uploaded to Cloudinary:', introAudioUrl);
-    } catch (err) {
-      console.error('❌ Error generating or uploading introduction audio:', err);
-      return res.status(500).json({ error: 'Failed to generate or upload introduction audio', details: err });
-    }
-
-    // 5. Generate audio for all chapters
+    // 4. Generate audio for all chapters (including intro if present)
     console.log('🎵 Generating audio for all chapters...');
-    const chapterAudioUrls: string[] = [];
-    for (let i = 0; i < numChapters; i++) {
+    const chaptersWithAudio = [];
+    for (let i = 0; i < storyJson.chapters.length; i++) {
+      let audioUrl = '';
       try {
         const openaiTTSRes = await axios.post(
           'https://api.openai.com/v1/audio/speech',
           {
             model: 'tts-1',
-            input: chapterTexts[i],
-            voice: 'alloy',
+            input: storyJson.chapters[i].text,
+            voice: 'nova', // Smoother, more natural for storytelling
             response_format: 'mp3'
           },
           {
@@ -296,7 +232,7 @@ export async function createStory(req: Request, res: Response) {
           }
         );
         const audioBuffer = Buffer.from(openaiTTSRes.data);
-        const audioUrl = await new Promise((resolve, reject) => {
+        audioUrl = await new Promise((resolve, reject) => {
           cloudinary.uploader.upload(
             `data:audio/mp3;base64,${audioBuffer.toString('base64')}`,
             { resource_type: 'video', format: 'mp3', folder: 'stories_audio' },
@@ -307,33 +243,20 @@ export async function createStory(req: Request, res: Response) {
             }
           );
         });
-        chapterAudioUrls.push(audioUrl as string);
-        console.log(`✅ Chapter ${i + 1} audio uploaded to Cloudinary:`, audioUrl);
       } catch (err) {
         console.error(`❌ Error generating or uploading chapter ${i + 1} audio:`, err);
         return res.status(500).json({ error: `Failed to generate or upload chapter ${i + 1} audio`, details: err });
       }
+      chaptersWithAudio.push({
+        ...storyJson.chapters[i],
+        audioUrl,
+        generated: true,
+      });
     }
 
-    // 6. Save story with chapters array (all audio included)
+    // 5. Save story with chapters array (all audio included)
     console.log('💾 Starting story save to database...');
     const stories = getStoriesCollection();
-    const chapters = [
-      {
-        title: introTitle,
-        description: introDescription,
-        text: introText,
-        audioUrl: introAudioUrl,
-        generated: true,
-      },
-      ...Array.from({ length: numChapters }, (_, i) => ({
-        title: chapterTitles[i],
-        description: chapterDescriptions[i],
-        text: chapterTexts[i],
-        audioUrl: chapterAudioUrls[i],
-        generated: true,
-      })),
-    ];
     const result = await stories.insertOne({
       userId: new ObjectId(userId),
       style,
@@ -341,22 +264,23 @@ export async function createStory(req: Request, res: Response) {
       image: imageUrl,
       rating: typeof rating === 'number' ? rating : 3.0,
       createdAt: new Date(),
-      chapters,
+      chapters: chaptersWithAudio,
       ageGroup,
       gender,
       name,
       character,
       hobbies,
+      // Do not store storyTitle/storyAuthor in DB (not in schema)
     });
     console.log('✅ Story saved to database successfully with ID:', result.insertedId);
-    
-    // 7. Deduct credits only after successful story creation
+
+    // 6. Deduct credits only after successful story creation
     console.log('💰 Deducting credits after successful story creation...');
     const updateResult = await users.updateOne(
       { _id: new ObjectId(userId), storyListenCredits: { $gt: 0 } },
       { $inc: { storyListenCredits: -1 } }
     );
-    
+
     if (updateResult.modifiedCount === 0) {
       console.log('❌ Failed to deduct credits for userId:', userId);
       // Even if credit deduction fails, the story was created successfully
@@ -365,13 +289,15 @@ export async function createStory(req: Request, res: Response) {
     } else {
       console.log('✅ Credits deducted successfully for userId:', userId);
     }
-    
+
     console.log('🎉 Story creation completed successfully!');
     res.status(201).json({
       success: true,
       storyId: result.insertedId,
-      chapters: chapters.map((c, i) => i < 2 ? c : { title: c.title, generated: false }),
+      chapters: chaptersWithAudio.map((c, i) => i < 2 ? c : { title: c.title, generated: false }),
       image: imageUrl,
+      storyTitle: storyJson.title,
+      storyAuthor: storyJson.author,
     });
   } catch (err) {
     console.error('❌ Fatal error in story creation:', err);
