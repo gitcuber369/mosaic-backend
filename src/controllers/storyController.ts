@@ -96,7 +96,7 @@ export async function createStory(req: Request, res: Response) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    // Check if user has credits before proceeding
+    // Check if user has generation credits (tokens) before proceeding
     console.log('💰 Checking user credits for userId:', userId);
     const users = getUsersCollection();
     const user = await users.findOne({ _id: new ObjectId(userId) });
@@ -104,13 +104,17 @@ export async function createStory(req: Request, res: Response) {
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
-    if (!user.storyListenCredits || user.storyListenCredits <= 0) {
-      console.log('❌ No story credits left for userId:', userId);
-      return res.status(403).json({ error: 'No story credits left' });
+    // Premium users can generate unlimited stories
+    if (!user.isPremium) {
+      if (typeof user.tokens !== 'number' || user.tokens <= 0) {
+        console.log('❌ No generation credits left for userId:', userId);
+        return res.status(403).json({ error: 'No generation credits left' });
+      }
+      // Deduct 1 generation credit
+      await users.updateOne({ _id: new ObjectId(userId) }, { $inc: { tokens: -1 } });
     }
     
-    console.log('✅ User has sufficient credits, proceeding with story generation');
+    console.log('✅ User has sufficient generation credits, proceeding with story generation');
 
 
     // Map age group to number of chapters

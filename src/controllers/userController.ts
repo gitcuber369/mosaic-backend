@@ -36,11 +36,11 @@ export async function createUser(req: Request, res: Response) {
       hobbies: hobbies || [],
       isPremium: false, // Always false on signup
       subscriptionId: subscriptionId || '',
-      tokens: 0, // New users start with 0 tokens
+      tokens: 5, // New users start with 5 generation credits
       dailyStoryCount: dailyStoryCount || 0,
       preferences: preferences || [],
       createdAt: new Date(),
-      storyListenCredits: 30,
+      storyListenCredits: 30, // 30 listening credits
     };
 
     const users = getUsersCollection();
