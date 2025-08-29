@@ -134,7 +134,7 @@ export async function createStory(req: Request, res: Response) {
     const chapterTexts: string[] = [];
     // 1. Introduction
     try {
-      const prompt = `Write the Introduction for a creative, engaging, and age-appropriate children's story in the ${style} style. The Introduction should be about 500 characters.\n\nInvent a creative, fitting name for the main character (do NOT use the user's name). The story is for a ${ageGroup} ${gender.toLowerCase()} child. This character is described as "${character}" and enjoys ${hobbies.join(", ")}.\n\nThe Introduction should introduce the main character's world and personality.\n\nPlease provide:\n1. A creative title for this introduction (2-4 words)\n2. A brief description (1 sentence, 10-15 words)\n3. The introduction text (about 500 characters)\n\nFormat your response as:\nTITLE: ...\nDESCRIPTION: ...\nTEXT: ...`;
+      const prompt = `Write the Introduction for a creative, engaging, and age-appropriate children's story in the ${style} style. The Introduction should be about 500 characters.\n\nInvent a creative, fitting name for the main character (do NOT use the user's name). The story is for a ${ageGroup} ${gender.toLowerCase()} child. This character is described as "${character}" and enjoys .\n\nThe Introduction should introduce the main character's world and personality.\n\nPlease provide:\n1. A creative title for this introduction (2-4 words)\n2. A brief description (1 sentence, 10-15 words)\n3. The introduction text (about 500 characters)\n\nFormat your response as:\nTITLE: ...\nDESCRIPTION: ...\nTEXT: ...`;
       const completion = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
         messages: [
@@ -198,7 +198,7 @@ export async function createStory(req: Request, res: Response) {
             { role: 'system', content: 'You are a creative children\'s story writer.' },
             { role: 'user', content: prompt },
           ],
-          max_tokens: 3000,
+          max_tokens: 8000,
           temperature: 0.8,
         });
         if (completion.choices && completion.choices[0] && completion.choices[0].message && typeof completion.choices[0].message.content === 'string') {
@@ -224,7 +224,7 @@ export async function createStory(req: Request, res: Response) {
     console.log('🎨 Starting image generation with gpt-image-1...');
     let imageUrl = '';
     try {
-      const imagePrompt = `A highly detailed 3D illustration in a whimsical, magical cartoon style similar to high-end Pixar or Disney animations. The scene features ${character} in a vibrant, storybook-like environment filled with rich, cinematic lighting, glowing highlights, soft shadows, and painterly textures. The mood is dreamlike and full of childlike wonder. Use warm tones, glowing elements (like lanterns, moonlight, or magic particles), and expressive character features—large, friendly eyes, soft facial expressions, and playful posture. The background is dynamic and immersive—think castles, floating objects, whimsical nature, or fantasy landscapes—evoking a sense of adventure and comfort suitable for children aged 4–8. Maintain stylized 3D proportions, soft sculpting, and a fairytale-like composition throughout`;
+      const imagePrompt = `A highly detailed 3D illustration in a whimsical, magical cartoon style similar to high-end Pixar or Disney animations. The scene features ${character} in a vibrant, storybook-like environment filled with variety and depth. The background includes a single distant fairytale tower peeking through soft clouds for a hint of fantasy, but focus on rolling green hills, a shimmering river, a whimsical wooden bridge, giant mushrooms with glowing caps, colorful wildflowers, and a few floating lanterns drifting in the air. Add unique trees with curly branches, sparkling fireflies, and a glowing path of stepping stones leading into the scene. Use cinematic lighting with warm tones, glowing highlights, soft shadows, and painterly textures. The mood is dreamlike and full of childlike wonder, with subtle magic particles in the air. Maintain stylized 3D proportions, soft sculpting, and a fairytale-like composition throughout, ensuring the background feels rich and diverse without repetitive elements.`;
       const imageRes = await openai.images.generate({
         prompt: imagePrompt,
         n: 1,
