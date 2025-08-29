@@ -1,3 +1,48 @@
+// One-time purchase of 10 credits
+export async function buyCreditsIntent(req: Request, res: Response) {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+    const users = getUsersCollection();
+    let user = await users.findOne({ email });
+    let customerId: string;
+    if (user?.stripeCustomerId) {
+      customerId = user.stripeCustomerId;
+    } else {
+      // Create new Stripe customer
+      const customer = await stripe.customers.create({
+        email,
+        metadata: { userId: user?._id?.toString() || '' }
+      });
+      customerId = customer.id;
+      if (user) {
+        await users.updateOne(
+          { _id: user._id },
+          { $set: { stripeCustomerId: customerId } }
+        );
+      }
+    }
+    // Create PaymentIntent for one-time credits purchase
+    const product = STRIPE_PRODUCTS.credits10;
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: product.price,
+      currency: 'usd',
+      customer: customerId,
+      payment_method_types: ['card'],
+      metadata: {
+        email,
+        product: 'credits10',
+        credits: product.credits.toString()
+      }
+    });
+    res.json({ clientSecret: paymentIntent.client_secret, paymentIntentId: paymentIntent.id });
+  } catch (error) {
+    console.error('Error creating buy credits intent:', error);
+    res.status(500).json({ error: 'Failed to create buy credits intent' });
+  }
+}
 import { Request, Response } from 'express';
 import { stripe, STRIPE_PRODUCTS, STRIPE_WEBHOOK_SECRET } from '../stripeConfig';
 import { getUsersCollection } from '../db';
@@ -207,7 +252,22 @@ export async function handleStripeWebhook(req: Request, res: Response) {
   try {
     const users = getUsersCollection();
 
-    switch (event.type) {
+  switch (event.type) {
+      // Handle successful one-time payment for credits10
+      case 'payment_intent.succeeded': {
+        const paymentIntent = event.data.object as any;
+        const email = paymentIntent.metadata?.email;
+        const product = paymentIntent.metadata?.product;
+        const credits = parseInt(paymentIntent.metadata?.credits || '0', 10);
+        if (email && product === 'credits10' && credits > 0) {
+          await users.updateOne(
+            { email },
+            { $inc: { storyListenCredits: credits } }
+          );
+          console.log(`Granted ${credits} credits to ${email} for one-time purchase.`);
+        }
+        break;
+      }
       case 'customer.subscription.created':
         const newSubscription = event.data.object as any;
         const newEmail = newSubscription.metadata?.email;

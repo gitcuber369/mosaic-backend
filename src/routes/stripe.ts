@@ -6,8 +6,10 @@ import {
   getSubscriptionStatus,
   createSubscription,
   debugUser,
-  resetUserPremium
+  resetUserPremium,
+  buyCreditsIntent
 } from '../controllers/stripeController';
+// One-time payment intent for 10 credits
 
 const router = express.Router();
 
@@ -213,5 +215,8 @@ router.get('/debug-user/:email', debugUser);
 
 // Reset user premium status
 router.post('/reset-premium/:email', resetUserPremium);
+
+router.post('/buy-credits', buyCreditsIntent);
+
 
 export default router;

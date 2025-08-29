@@ -16,6 +16,14 @@ export const STRIPE_PRODUCTS = {
     price: 499, // $4.99 in cents
     interval: 'month'
   },
+  credits10: {
+    productId: 'prod_Sr3K7ubW5EPlTa',
+    priceId: 'price_1RvLDv16JeMmx3ntv7vyMBFK',
+    name: '10 Extra Listening Credits',
+    price: 299, // $2.99 in cents
+    credits: 10,
+    type: 'one_time',
+  },
 };
 
 export default stripe; 
