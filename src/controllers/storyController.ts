@@ -105,6 +105,20 @@ export async function createStory(req: Request, res: Response) {
       return res.status(404).json({ error: 'User not found' });
     }
     // Premium users can generate unlimited stories
+    // Update lastStoryRecipient on user with the latest story recipient data
+    await users.updateOne(
+      { _id: new ObjectId(userId) },
+      {
+        $set: {
+          lastStoryRecipient: {
+            name,
+            gender,
+            ageGroup,
+            hobbies: hobbies || [],
+          },
+        },
+      }
+    );
     if (!user.isPremium) {
       if (typeof user.tokens !== 'number' || user.tokens <= 0) {
         console.log('❌ No generation credits left for userId:', userId);
@@ -141,7 +155,7 @@ export async function createStory(req: Request, res: Response) {
           { role: 'system', content: 'You are a creative children\'s story writer.' },
           { role: 'user', content: prompt },
         ],
-        max_tokens: 2000,
+        max_tokens: 8000,
         temperature: 0.8,
       });
       if (completion.choices && completion.choices[0] && completion.choices[0].message && typeof completion.choices[0].message.content === 'string') {
@@ -499,12 +513,12 @@ export async function generateChapter(req: Request, res: Response) {
     let chapterDescription = '';
     try {
       const completion = await openai.chat.completions.create({
-        model: 'gpt-3.5-turbo',
+        model: 'chatgpt-4o-latest',
         messages: [
           { role: 'system', content: 'You are a creative children\'s story writer.' },
           { role: 'user', content: prompt },
         ],
-        max_tokens: 800,
+        max_tokens: 8000,
         temperature: 0.8,
       });
       if (completion.choices && completion.choices[0] && completion.choices[0].message && typeof completion.choices[0].message.content === 'string') {

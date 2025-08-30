@@ -41,6 +41,12 @@ export async function createUser(req: Request, res: Response) {
       preferences: preferences || [],
       createdAt: new Date(),
       storyListenCredits: 30, // 30 listening credits
+      lastStoryRecipient: {
+        name,
+        gender,
+        ageGroup,
+        hobbies: hobbies || [],
+      },
     };
 
     const users = getUsersCollection();
