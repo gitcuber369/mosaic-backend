@@ -141,14 +141,16 @@ export async function createStory(req: Request, res: Response) {
     };
     const numChapters = ageGroupToChapters[ageGroup] || 3;
 
-    // Generate Introduction
-    let introTitle = '', introDescription = '', introText = '';
-    const chapterTitles: string[] = [];
-    const chapterDescriptions: string[] = [];
-    const chapterTexts: string[] = [];
-    // 1. Introduction
+    // Single LLM call for intro + all chapters in JSON format
+  let storyTitle = '', storyDescription = '', introTitle = '', introDescription = '', introText = '';
+  const chapterTitles: string[] = [];
+  const chapterDescriptions: string[] = [];
+  const chapterTexts: string[] = [];
+  const chapterThemes: string[] = [];
     try {
-      const prompt = `Write the Introduction for a creative, engaging, and age-appropriate children's story in the ${style} style. The Introduction should be about 500 characters.\n\nInvent a creative, fitting name for the main character (do NOT use the user's name). The story is for a ${ageGroup} ${gender.toLowerCase()} child. This character is described as "${character}" and enjoys .\n\nThe Introduction should introduce the main character's world and personality.\n\nPlease provide:\n1. A creative title for this introduction (2-4 words)\n2. A brief description (1 sentence, 10-15 words)\n3. The introduction text (about 500 characters)\n\nFormat your response as:\nTITLE: ...\nDESCRIPTION: ...\nTEXT: ...`;
+      let prompt = `Write a creative, engaging, and age-appropriate children's story in the ${style} style for a ${ageGroup} ${gender} child. The main character is described as \"${character}\" and enjoys ${hobbies.join(", ")}.\n\n`;
+      prompt += `Return your response as valid minified JSON (no comments, no trailing commas, no extra text).\n\nThe JSON should have this structure:\n{\n  \"storyTitle\": string,\n  \"storyDescription\": string,\n  \"introduction\": {\n    \"title\": string,\n    \"description\": string,\n    \"text\": string\n  },\n  \"chapters\": [\n    {\n      \"title\": string,\n      \"description\": string,\n      \"text\": string\n    }${numChapters > 1 ? ", ..." : ''}\n  ]\n}\n\nRequirements:\n- The introduction should be about 200-250 words.\n- There should be exactly ${numChapters} chapters.\n- Each chapter must have a unique, creative title (2-4 words), a 1-sentence description (10-15 words), and a chapter text (about 200-250 words).\n- Do not include any explanation or commentary, only the JSON.`;
+
       const completion = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
         messages: [
@@ -159,86 +161,57 @@ export async function createStory(req: Request, res: Response) {
         temperature: 0.8,
       });
       if (completion.choices && completion.choices[0] && completion.choices[0].message && typeof completion.choices[0].message.content === 'string') {
-        const content = completion.choices[0].message.content.trim();
-        const titleMatch = content.match(/TITLE:\s*(.+)/i);
-        const descriptionMatch = content.match(/DESCRIPTION:\s*(.+)/i);
-        const textMatch = content.match(/TEXT:\s*([\s\S]+)/i);
-        introTitle = titleMatch ? titleMatch[1].trim() : 'Introduction';
-        introDescription = descriptionMatch ? descriptionMatch[1].trim() : 'Meet our main character';
-        introText = textMatch ? textMatch[1].trim() : content;
+        let content = completion.choices[0].message.content.trim();
+        // Try to extract JSON from the response
+        let jsonStart = content.indexOf('{');
+        let jsonEnd = content.lastIndexOf('}');
+        if (jsonStart === -1 || jsonEnd === -1) throw new Error('No JSON found in LLM response');
+        let jsonString = content.substring(jsonStart, jsonEnd + 1);
+        let storyObj;
+        try {
+          storyObj = JSON.parse(jsonString);
+        } catch (e) {
+          console.error('❌ Failed to parse LLM JSON:', e, jsonString);
+          return res.status(500).json({ error: 'Failed to parse story JSON from LLM response', details: e });
+        }
+        storyTitle = storyObj.storyTitle || '';
+        storyDescription = storyObj.storyDescription || '';
+        if (storyObj.introduction) {
+          introTitle = storyObj.introduction.title || '';
+          introDescription = storyObj.introduction.description || '';
+          introText = storyObj.introduction.text || '';
+        }
+        if (Array.isArray(storyObj.chapters)) {
+          for (let i = 0; i < numChapters; i++) {
+            const ch = storyObj.chapters[i] || {};
+            chapterTitles.push(ch.title || `Chapter ${i+1}`);
+            chapterDescriptions.push(ch.description || 'No description available.');
+            chapterThemes.push(ch.theme || 'Adventure');
+            chapterTexts.push(ch.text || 'Chapter unavailable.');
+          }
+        }
       } else {
         introTitle = 'Introduction';
         introDescription = 'Meet our main character';
         introText = '';
+        for (let i = 0; i < numChapters; i++) {
+          chapterTitles.push(`Chapter ${i+1}`);
+          chapterDescriptions.push('No description available.');
+          chapterTexts.push('Chapter unavailable.');
+        }
       }
     } catch (err) {
-      console.error('❌ Error generating introduction:', err);
-      return res.status(500).json({ error: 'Failed to generate introduction', details: err });
-    }
-
-    // Generate chapters dynamically based on numChapters
-    for (let i = 0; i < numChapters; i++) {
-      let chapterName = `Chapter ${i + 1}`;
-      let chapterTheme = '';
-      let isFinalChapter = (i === numChapters - 1);
-      if (i === 0) chapterTheme = 'The Challenge';
-      else if (i === 1) chapterTheme = 'The Journey';
-      else if (i === 2) chapterTheme = 'The Lesson';
-      else chapterTheme = `Adventure Part ${i + 1}`;
-      try {
-        // Build a summary of previous chapters for context
-        let previousSummary = '';
-        if (i === 0) {
-          previousSummary = `INTRODUCTION\nTitle: ${introTitle}\nDescription: ${introDescription}\nText: ${introText}`;
-        } else {
-          previousSummary = `PREVIOUS CHAPTERS:\n`;
-          for (let j = 0; j < i; j++) {
-            previousSummary += `Chapter ${j + 1}:\nTitle: ${chapterTitles[j]}\nDescription: ${chapterDescriptions[j]}\nText: ${chapterTexts[j]}\n`;
-          }
-        }
-        // Stronger prompt for narrative flow and context
-        let prompt =
-          `${previousSummary}\n\n` +
-          `Now write ${chapterName} (${chapterTheme}) for a creative, engaging, and age-appropriate children's story in the ${style} style. This chapter should be about 1800 characters.\n` +
-          `The story is for a ${ageGroup} ${gender.toLowerCase()} child. The main character is described as: "${character}" and enjoys ${hobbies.join(", ")}.\n` +
-          (isFinalChapter
-            ? `This is the final chapter. Make sure to bring the story to a satisfying and meaningful conclusion, resolving all major plot points and giving closure to the main character's journey.\n`
-            : `This chapter MUST be a direct continuation of the previous chapter(s), explicitly referencing important events, character actions, and growth from earlier chapters. Maintain strong narrative flow and context.\n`)
-          + `Be sure to:\n- Reference specific events, decisions, or changes from previous chapters.\n- Show how the main character is affected by and responds to earlier events.\n- Maintain consistency in tone, style, and story world.\n- Each chapter must have a unique, creative title (2-4 words) and a 1-sentence description (10-15 words) summarizing the chapter.\n\nPlease provide:\n1. A unique, creative title for this chapter (2-4 words)\n2. A brief description (1 sentence, 10-15 words)\n3. The chapter text (about 1800 characters, well-aligned with the title and description, and continuing the story naturally)\n\nFormat your response as:\nTITLE: ...\nDESCRIPTION: ...\nTEXT: ...`;
-
-        const completion = await openai.chat.completions.create({
-          model: 'gpt-4o-mini',
-          messages: [
-            { role: 'system', content: 'You are a creative children\'s story writer.' },
-            { role: 'user', content: prompt },
-          ],
-          max_tokens: 8000,
-          temperature: 0.8,
-        });
-        if (completion.choices && completion.choices[0] && completion.choices[0].message && typeof completion.choices[0].message.content === 'string') {
-          const content = completion.choices[0].message.content.trim();
-          const titleMatch = content.match(/TITLE:\s*(.+)/i);
-          const descriptionMatch = content.match(/DESCRIPTION:\s*(.+)/i);
-          const textMatch = content.match(/TEXT:\s*([\s\S]+)/i);
-          chapterTitles.push(titleMatch ? titleMatch[1].trim() : chapterName);
-          chapterDescriptions.push(descriptionMatch ? descriptionMatch[1].trim() : chapterTheme);
-          chapterTexts.push(textMatch ? textMatch[1].trim() : content);
-        } else {
-          chapterTitles.push(chapterName);
-          chapterDescriptions.push(chapterTheme);
-          chapterTexts.push('');
-        }
-      } catch (err) {
-        console.error(`❌ Error generating chapter ${i + 1}:`, err);
-        return res.status(500).json({ error: `Failed to generate chapter ${i + 1}`, details: err });
-      }
+      console.error('❌ Error generating story:', err);
+      return res.status(500).json({ error: 'Failed to generate story', details: err });
     }
 
     // 3. Generate image with DALL-E (OpenAI)
     console.log('🎨 Starting image generation with gpt-image-1...');
     let imageUrl = '';
     try {
-      const imagePrompt = `A highly detailed 3D illustration in a whimsical, magical cartoon style similar to high-end Pixar or Disney animations. The scene features ${character} in a vibrant, storybook-like environment filled with variety and depth. The background includes a single distant fairytale tower peeking through soft clouds for a hint of fantasy, but focus on rolling green hills, a shimmering river, a whimsical wooden bridge, giant mushrooms with glowing caps, colorful wildflowers, and a few floating lanterns drifting in the air. Add unique trees with curly branches, sparkling fireflies, and a glowing path of stepping stones leading into the scene. Use cinematic lighting with warm tones, glowing highlights, soft shadows, and painterly textures. The mood is dreamlike and full of childlike wonder, with subtle magic particles in the air. Maintain stylized 3D proportions, soft sculpting, and a fairytale-like composition throughout, ensuring the background feels rich and diverse without repetitive elements.`;
+      // Use the first chapter's theme, or join all themes for a richer prompt
+      const storyTheme = chapterThemes.length > 0 ? chapterThemes[0] : 'magical adventure';
+      const imagePrompt = `A highly detailed 3D illustration in a whimsical, magical cartoon style. Theme: ${storyTheme}. The scene features ${character} in a vibrant, storybook-like environment filled with variety and depth. The background includes a single distant fairytale tower peeking through soft clouds for a hint of fantasy, but focus on rolling green hills, a shimmering river, a whimsical wooden bridge, giant mushrooms with glowing caps, colorful wildflowers, and a few floating lanterns drifting in the air. Add unique trees with curly branches, sparkling fireflies, and a glowing path of stepping stones leading into the scene. Use cinematic lighting with warm tones, glowing highlights, soft shadows, and painterly textures. The mood is dreamlike and full of childlike wonder, with subtle magic particles in the air. Maintain stylized 3D proportions, soft sculpting, and a fairytale-like composition throughout, ensuring the background feels rich and diverse without repetitive elements.`;
       const imageRes = await openai.images.generate({
         prompt: imagePrompt,
         n: 1,
@@ -275,42 +248,7 @@ export async function createStory(req: Request, res: Response) {
 
 
     // 4. Generate audio for Introduction
-    console.log('🎵 Starting Introduction audio generation...');
-    let introAudioUrl = '';
-    try {
-      const openaiTTSRes = await axios.post(
-        'https://api.openai.com/v1/audio/speech',
-        {
-          model: 'tts-1',
-          input: introText,
-          voice: 'alloy',
-          response_format: 'mp3'
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          responseType: 'arraybuffer'
-        }
-      );
-      const audioBuffer = Buffer.from(openaiTTSRes.data);
-      introAudioUrl = await new Promise((resolve, reject) => {
-        cloudinary.uploader.upload(
-          `data:audio/mp3;base64,${audioBuffer.toString('base64')}`,
-          { resource_type: 'video', format: 'mp3', folder: 'stories_audio' },
-          (error, result) => {
-            if (error) return reject(error);
-            if (!result) return reject(new Error('No result from Cloudinary upload'));
-            resolve(result.secure_url);
-          }
-        );
-      });
-      console.log('✅ Introduction audio uploaded to Cloudinary:', introAudioUrl);
-    } catch (err) {
-      console.error('❌ Error generating or uploading introduction audio:', err);
-      return res.status(500).json({ error: 'Failed to generate or upload introduction audio', details: err });
-    }
+    // (Removed: No audio generation for introduction)
 
     // 5. Generate audio for all chapters
     console.log('🎵 Generating audio for all chapters...');
@@ -361,7 +299,7 @@ export async function createStory(req: Request, res: Response) {
         title: introTitle,
         description: introDescription,
         text: introText,
-        audioUrl: introAudioUrl,
+        audioUrl: '',
         generated: true,
       },
       ...Array.from({ length: numChapters }, (_, i) => ({
@@ -387,14 +325,14 @@ export async function createStory(req: Request, res: Response) {
       hobbies,
     });
     console.log('✅ Story saved to database successfully with ID:', result.insertedId);
-    
+
     // 7. Deduct credits only after successful story creation
     console.log('💰 Deducting credits after successful story creation...');
     const updateResult = await users.updateOne(
       { _id: new ObjectId(userId), storyListenCredits: { $gt: 0 } },
       { $inc: { storyListenCredits: -1 } }
     );
-    
+
     if (updateResult.modifiedCount === 0) {
       console.log('❌ Failed to deduct credits for userId:', userId);
       // Even if credit deduction fails, the story was created successfully
@@ -403,7 +341,7 @@ export async function createStory(req: Request, res: Response) {
     } else {
       console.log('✅ Credits deducted successfully for userId:', userId);
     }
-    
+
     console.log('🎉 Story creation completed successfully!');
     res.status(201).json({
       success: true,
