@@ -1,3 +1,4 @@
+
 import type { Request, Response } from 'express';
 import { getUsersCollection } from '../db';
 import { getStoriesCollection } from '../db';
@@ -391,5 +392,27 @@ export async function deleteUserAccount(req: Request, res: Response) {
     res.status(200).json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Failed to delete user', details: err });
+  }
+}
+// Set isCancelled to true or false for a user (e.g. from Stripe webhook or admin)
+export async function setUserCancelled(req: Request, res: Response) {
+  try {
+    const { email, isCancelled } = req.body;
+    if (!email || typeof isCancelled !== 'boolean') {
+      return res.status(400).json({ error: 'Email and isCancelled(boolean) are required' });
+    }
+    const users = getUsersCollection();
+    const result = await users.findOneAndUpdate(
+      { email },
+      { $set: { isCancelled } },
+      { returnDocument: 'after' }
+    );
+    const updatedUser = result && (result as any).value ? (result as any).value : result;
+    if (!updatedUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.status(200).json({ success: true, user: updatedUser });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update isCancelled', details: err });
   }
 }
