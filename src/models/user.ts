@@ -31,4 +31,5 @@ export interface User {
   stripeCustomerId?: string;
   stripeSubscriptionId?: string;
   premiumExpiresAt?: Date;
+  isCancelled?: boolean;
 } 

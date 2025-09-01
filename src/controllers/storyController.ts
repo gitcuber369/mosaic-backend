@@ -148,7 +148,7 @@ export async function createStory(req: Request, res: Response) {
   const chapterTexts: string[] = [];
   const chapterThemes: string[] = [];
     try {
-      let prompt = `Write a creative, engaging, and age-appropriate children's story in the ${style} style for a ${ageGroup} ${gender} child. The main character is described as \"${character}\" and enjoys ${hobbies.join(", ")}.\n\n`;
+      let prompt = `Write a creative, engaging, and age-appropriate children's story in the ${style} style for a ${ageGroup} ${gender} child. The main character is described as \"${character}\" and enjoys.\n\n`;
       prompt += `Return your response as valid minified JSON (no comments, no trailing commas, no extra text).\n\nThe JSON should have this structure:\n{\n  \"storyTitle\": string,\n  \"storyDescription\": string,\n  \"introduction\": {\n    \"title\": string,\n    \"description\": string,\n    \"text\": string\n  },\n  \"chapters\": [\n    {\n      \"title\": string,\n      \"description\": string,\n      \"text\": string\n    }${numChapters > 1 ? ", ..." : ''}\n  ]\n}\n\nRequirements:\n- The introduction should be about 200-250 words.\n- There should be exactly ${numChapters} chapters.\n- Each chapter must have a unique, creative title (2-4 words), a 1-sentence description (10-15 words), and a chapter text (about 200-250 words).\n- Do not include any explanation or commentary, only the JSON.`;
 
       const completion = await openai.chat.completions.create({
