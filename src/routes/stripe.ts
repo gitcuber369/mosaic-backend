@@ -9,8 +9,9 @@ import {
   resetUserPremium,
   buyCreditsIntent
 } from '../controllers/stripeController';
-// One-time payment intent for 10 credits
+import { authenticateToken } from '../middleware/auth';
 
+// One-time payment intent for 10 credits
 const router = express.Router();
 
 /**
@@ -195,28 +196,17 @@ const router = express.Router();
  *         description: Failed to reset user premium status
  */
 
-// Create payment intent for subscription
-router.post('/create-payment-intent', createPaymentIntent);
-
-// Create subscription after successful payment
-router.post('/create-subscription', createSubscription);
-
-// Handle Stripe webhooks
+// Public: Stripe webhook must remain public
 router.post('/webhook', express.raw({ type: 'application/json' }), handleStripeWebhook);
 
-// Cancel subscription
-router.post('/cancel-subscription', cancelSubscription);
-
-// Get subscription status
-router.get('/subscription-status/:email', getSubscriptionStatus);
-
-// Debug user data
-router.get('/debug-user/:email', debugUser);
-
-// Reset user premium status
-router.post('/reset-premium/:email', resetUserPremium);
-
-router.post('/buy-credits', buyCreditsIntent);
+// Protected routes
+router.post('/create-payment-intent', authenticateToken, createPaymentIntent);
+router.post('/create-subscription', authenticateToken, createSubscription);
+router.post('/cancel-subscription', authenticateToken, cancelSubscription);
+router.get('/subscription-status/:email', authenticateToken, getSubscriptionStatus);
+router.get('/debug-user/:email', authenticateToken, debugUser);
+router.post('/reset-premium/:email', authenticateToken, resetUserPremium);
+router.post('/buy-credits', authenticateToken, buyCreditsIntent);
 
 
 export default router;

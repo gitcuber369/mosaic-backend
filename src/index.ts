@@ -17,10 +17,11 @@ import supportRouter from './routes/support';
 import stripeRouter from './routes/stripe';
 import { connectToDatabase } from './db';
 // @ts-ignore
-import { swaggerUi, specs } from './swaggerConfig';
+import swaggerUi from 'swagger-ui-express';
+import { specs } from './swaggerConfig';
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT;
 
 // --- Stripe webhook raw body parser ---
 app.use('/api/stripe/webhook', raw({ type: 'application/json' }));

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { createUser, getUserByEmail, loginUser, deleteUserAccount } from '../controllers/userController';
 import { upgradeUserToPremium, buyStoryCredits, monthlyResetCredits, deductListenCreditForChapter, getUserListeningHistory } from '../controllers/userController';
+import { authenticateToken } from '../middleware/auth';
 
 const router = Router();
 
@@ -40,7 +41,7 @@ const router = Router();
  *       500:
  *         description: Failed to create user
  */
-// POST /api/users
+// POST /api/users (signup, public)
 router.post('/', createUser);
 
 /**
@@ -67,8 +68,8 @@ router.post('/', createUser);
  *       500:
  *         description: Failed to fetch user
  */
-// GET /api/users/by-email?email=...
-router.get('/by-email', getUserByEmail);
+// GET /api/users/by-email?email=... (protected)
+router.get('/by-email', authenticateToken, getUserByEmail);
 
 /**
  * @swagger
@@ -96,7 +97,7 @@ router.get('/by-email', getUserByEmail);
  *       500:
  *         description: Failed to login user
  */
-// POST /api/users/login
+// POST /api/users/login (public)
 router.post('/login', loginUser);
 
 /**
@@ -125,8 +126,8 @@ router.post('/login', loginUser);
  *       500:
  *         description: Failed to upgrade user
  */
-// POST /api/users/upgrade
-router.post('/upgrade', upgradeUserToPremium);
+// POST /api/users/upgrade (protected)
+router.post('/upgrade', authenticateToken, upgradeUserToPremium);
 
 /**
  * @swagger
@@ -156,8 +157,8 @@ router.post('/upgrade', upgradeUserToPremium);
  *       500:
  *         description: Failed to buy credits
  */
-// POST /api/users/buy-credits
-router.post('/buy-credits', buyStoryCredits);
+// POST /api/users/buy-credits (protected)
+router.post('/buy-credits', authenticateToken, buyStoryCredits);
 
 /**
  * @swagger
@@ -172,7 +173,8 @@ router.post('/buy-credits', buyStoryCredits);
  *       500:
  *         description: Failed to reset credits
  */
-router.post('/monthly-reset', monthlyResetCredits);
+// POST /api/users/monthly-reset (protected)
+router.post('/monthly-reset', authenticateToken, monthlyResetCredits);
 
 /**
  * @swagger
@@ -200,8 +202,8 @@ router.post('/monthly-reset', monthlyResetCredits);
  *       500:
  *         description: Failed to delete user
  */
-// POST /api/users/delete-account
-router.post('/delete-account', deleteUserAccount);
+// POST /api/users/delete-account (protected)
+router.post('/delete-account', authenticateToken, deleteUserAccount);
 
 /**
  * @swagger
@@ -237,7 +239,8 @@ router.post('/delete-account', deleteUserAccount);
  *       500:
  *         description: Failed to deduct credit
  */
-router.post('/deduct-listen-credit-chapter', deductListenCreditForChapter);
+// POST /api/users/deduct-listen-credit-chapter (protected)
+router.post('/deduct-listen-credit-chapter', authenticateToken, deductListenCreditForChapter);
 
 /**
  * @swagger
@@ -269,7 +272,7 @@ router.post('/deduct-listen-credit-chapter', deductListenCreditForChapter);
  *       500:
  *         description: Failed to get listening history
  */
-// GET /api/users/listening-history
-router.get('/listening-history', getUserListeningHistory);
+// GET /api/users/listening-history (protected)
+router.get('/listening-history', authenticateToken, getUserListeningHistory);
 
 export default router;

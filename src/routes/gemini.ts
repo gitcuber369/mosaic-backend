@@ -1,8 +1,10 @@
 import express from 'express';
 import { handleGeminiRequest } from '../controllers/geminiController';
+import { authenticateToken } from '../middleware/auth';
 
 const router = express.Router();
 
-router.post('/', handleGeminiRequest);
+// Gemini route (protected)
+router.post('/', authenticateToken, handleGeminiRequest);
 
-export default router; 
+export default router;

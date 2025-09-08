@@ -7,7 +7,7 @@ import { ObjectId } from 'mongodb';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET as string;
 
 export async function createUser(req: Request, res: Response) {
   try {

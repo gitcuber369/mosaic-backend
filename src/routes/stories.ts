@@ -1,7 +1,7 @@
-
 import { Router } from 'express';
 import { createStory, getUserStories, getStoryById, getPaginatedStories, generateChapter, deleteStory, rateStory, generateChapterAudio } from '../controllers/storyController';
 import { getStoriesCollection } from '../db';
+import { authenticateToken } from '../middleware/auth';
 
 const router = Router();
 
@@ -211,13 +211,15 @@ const router = Router();
  *         description: Failed to delete story
  */
 
-router.post('/', createStory);
-router.post('/:id/generate-audio/:chapterIndex', generateChapterAudio);
+// Public routes
 router.get('/public-paginated', getPaginatedStories);
-router.get('/user/:userId', getUserStories);
 router.get('/:id', getStoryById);
-router.post('/:id/chapter', generateChapter);
-router.post('/:id/rate', rateStory);
-router.delete('/:id', deleteStory);
+// Protected routes
+router.post('/', authenticateToken, createStory);
+router.post('/:id/generate-audio/:chapterIndex', authenticateToken, generateChapterAudio);
+router.get('/user/:userId', authenticateToken, getUserStories);
+router.post('/:id/chapter', authenticateToken, generateChapter);
+router.post('/:id/rate', authenticateToken, rateStory);
+router.delete('/:id', authenticateToken, deleteStory);
 
 export default router;

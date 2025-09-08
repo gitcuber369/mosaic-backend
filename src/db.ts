@@ -2,7 +2,7 @@ import { MongoClient } from 'mongodb';
 import { User } from './models/user';
 import { Story } from './models/story';
 
-const uri = 'mongodb+srv://arpitchaudhary2003:FkynhabsB0KpEJkf@cluster0.n5sh4.mongodb.net/mosaic';
+const uri = process.env.MONGO_URI as string;
 let client: MongoClient;
 
 export async function connectToDatabase() {

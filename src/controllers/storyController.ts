@@ -71,9 +71,9 @@ import axios from 'axios';
 import { v2 as cloudinary } from 'cloudinary';
 import OpenAI from 'openai';
 cloudinary.config({
-  cloud_name: 'dyhjoenm7',
-  api_key: '334143462565599',
-  api_secret: 'qaWAqE96QdHRCv1OKduW_jhr2Fc',
+  cloud_name: process.env.CLOUD_NAME  as string,
+  api_key: process.env.CLOUDINARY_API_KEY as string,
+  api_secret: process.env.CLOUDINARY_API_SECRET as string,
 });
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });

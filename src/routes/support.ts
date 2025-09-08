@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { submitSupportIssue } from '../controllers/supportController';
+import { authenticateToken } from '../middleware/auth';
 
 /**
  * @swagger
@@ -35,6 +36,7 @@ import { submitSupportIssue } from '../controllers/supportController';
 
 const router = Router();
 
-router.post('/', submitSupportIssue);
+// Support route (protected)
+router.post('/', authenticateToken, submitSupportIssue);
 
 export default router;

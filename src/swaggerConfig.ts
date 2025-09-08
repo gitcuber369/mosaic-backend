@@ -1,5 +1,6 @@
-const swaggerJsdoc = require('swagger-jsdoc');
-const swaggerUi = require('swagger-ui-express');
+
+ import swaggerJSDoc from 'swagger-jsdoc';
+import swaggerUi from 'swagger-ui-express';
 
 const options = {
   definition: {
@@ -11,16 +12,13 @@ const options = {
     },
     servers: [
       {
-        url: 'https://mosaic-backend-0.onrender.com/', // Update this to match your Render URL
+        url: 'https://mosaic-backend-dja0.onrender.com/', // Update this to match your Render URL
       },
     ],
   },
   apis: ['./src/routes/*.ts', './src/controllers/*.ts'], // Path to the API docs
 };
 
-const specs = swaggerJsdoc(options);
+const specs = swaggerJSDoc(options);
 
-module.exports = {
-  swaggerUi,
-  specs,
-};
+export { swaggerUi, specs };
