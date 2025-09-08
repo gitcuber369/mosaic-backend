@@ -1,7 +1,11 @@
 import Stripe from 'stripe';
 
-// Initialize Stripe with your secret key
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string , {
+// Initialize Stripe with your secret key, with safety check
+const secretKey = process.env.STRIPE_SECRET_KEY;
+if (!secretKey) {
+  throw new Error('STRIPE_SECRET_KEY is not set in environment variables');
+}
+export const stripe = new Stripe(secretKey, {
   apiVersion: '2025-07-30.basil',
 });
 
