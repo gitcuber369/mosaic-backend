@@ -69,7 +69,7 @@ router.post('/', createUser);
  *         description: Failed to fetch user
  */
 // GET /api/users/by-email?email=... (protected)
-router.get('/by-email', authenticateToken, getUserByEmail);
+router.get('/by-email', getUserByEmail);
 
 /**
  * @swagger
