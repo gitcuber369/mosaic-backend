@@ -315,7 +315,7 @@ export async function createStory(req: Request, res: Response) {
       style,
       voice: voiceId,
       image: imageUrl,
-      rating: typeof rating === 'number' ? rating : 3.0,
+      rating: typeof rating === 'number' ? rating : 0.0,
       createdAt: new Date(),
       chapters,
       ageGroup,
@@ -578,7 +578,7 @@ export async function deleteStory(req: Request, res: Response) {
 } 
 
 // POST /api/stories/:id/rate
-export async function rateStory(req: Request, res: Response) {
+export async function yesrateStory(req: Request, res: Response) {
   try {
     const { id } = req.params;
     const { rating } = req.body as { rating: number };
