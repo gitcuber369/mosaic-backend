@@ -205,6 +205,7 @@ export async function createSubscription(req: Request, res: Response) {
       { 
         $set: { 
           isPremium: true,
+          storyListenCredits: 30,
           stripeSubscriptionId: subscription.id,
           premiumExpiresAt: new Date((subscription as any).current_period_end * 1000)
         }
@@ -308,6 +309,7 @@ export async function handleStripeWebhook(req: Request, res: Response) {
                 { 
                   $set: { 
                     isPremium: true,
+                    storyListenCredits: (userBefore?.storyListenCredits || 0) + 30,
                     stripeSubscriptionId: newSubscription.id,
                     premiumExpiresAt: new Date(newSubscription.current_period_end * 1000)
                   },
