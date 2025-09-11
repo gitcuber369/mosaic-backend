@@ -291,13 +291,18 @@ export async function handleStripeWebhook(req: Request, res: Response) {
       case 'customer.subscription.created':
         const newSubscription = event.data.object as any;
         const newEmail = newSubscription.metadata?.email;
-        
+        console.log('[Stripe Webhook] Received customer.subscription.created event');
+        console.log('[Stripe Webhook] newEmail:', newEmail);
+        console.log('[Stripe Webhook] newSubscription.status:', newSubscription.status);
         if (newEmail && newSubscription.status === 'active') {
           let retries = 0;
           let success = false;
           let lastError = null;
           while (retries < 5 && !success) {
             try {
+              // Log user before update
+              const userBefore = await users.findOne({ email: newEmail });
+              console.log('[Stripe Webhook] User before update:', userBefore);
               const result = await users.updateOne(
                 { email: newEmail },
                 { 
@@ -311,6 +316,11 @@ export async function handleStripeWebhook(req: Request, res: Response) {
                   }
                 }
               );
+              // Log update result
+              console.log('[Stripe Webhook] updateOne result:', result);
+              // Log user after update
+              const userAfter = await users.findOne({ email: newEmail });
+              console.log('[Stripe Webhook] User after update:', userAfter);
               if (result.modifiedCount === 1) {
                 success = true;
                 console.log(`Granted subscription and credits to ${newEmail}`);
