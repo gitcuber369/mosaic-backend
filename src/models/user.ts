@@ -33,4 +33,4 @@ export interface User {
   premiumExpiresAt?: Date;
   isCancelled?: boolean;
   appleUserId?: string; // For Apple-auth users
-}
+} 

@@ -11,7 +11,6 @@ const JWT_SECRET = process.env.JWT_SECRET as string;
 
 export async function createUser(req: Request, res: Response) {
   try {
-
     const {
       name,
       email,
@@ -76,26 +75,33 @@ export async function createUser(req: Request, res: Response) {
 
 export async function loginUser(req: Request, res: Response) {
   try {
-    const { email } = req.body;
-    
-    if (!email) {
-      return res.status(400).json({ error: 'Email is required' });
+    const { email, appleUserId } = req.body;
+    if (!email && !appleUserId) {
+      return res.status(400).json({ error: 'Email or appleUserId is required' });
     }
-
     const users = getUsersCollection();
-    const user = await users.findOne({ email });
-    
+    let user = null;
+    if (appleUserId) {
+      user = await users.findOne({ appleUserId });
+    }
+    // If not found by appleUserId, or not provided, try by email
+    if (!user && email) {
+      user = await users.findOne({ email });
+    }
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
-
+    // If user exists but appleUserId is missing and provided in request, update user
+    if (appleUserId && !user.appleUserId) {
+      await users.updateOne({ _id: user._id }, { $set: { appleUserId } });
+      user.appleUserId = appleUserId;
+    }
     // Generate JWT token
     const token = jwt.sign(
       { userId: user._id?.toString(), email: user.email },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
-
     res.status(200).json({
       success: true,
       user,
