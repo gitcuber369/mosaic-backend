@@ -271,10 +271,18 @@ export async function handleStripeWebhook(req: Request, res: Response) {
           let lastError = null;
           while (retries < 5 && !success) {
             try {
+              // Log user before update
+              const userBefore = await users.findOne({ email });
+              console.log('[Stripe Webhook] [payment_intent.succeeded] User before update:', userBefore);
               const result = await users.updateOne(
                 { email },
                 { $inc: { storyListenCredits: 10 } }
               );
+              // Log update result
+              console.log('[Stripe Webhook] [payment_intent.succeeded] updateOne result:', result);
+              // Log user after update
+              const userAfter = await users.findOne({ email });
+              console.log('[Stripe Webhook] [payment_intent.succeeded] User after update:', userAfter);
               if (result.modifiedCount === 1) {
                 success = true;
                 console.log(`Granted ${credits} credits to ${email} for one-time purchase.`);
