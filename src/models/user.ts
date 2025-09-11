@@ -32,4 +32,8 @@ export interface User {
   stripeSubscriptionId?: string;
   premiumExpiresAt?: Date;
   isCancelled?: boolean;
+  /**
+   * Apple Sign-In unique user identifier
+   */
+  appleUserId?: string;
 } 

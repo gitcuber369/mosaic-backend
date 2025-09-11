@@ -22,15 +22,17 @@ export async function createUser(req: Request, res: Response) {
       subscriptionId,
       dailyStoryCount,
       preferences,
+      appleUserId, // Apple unique user ID
     } = req.body;
 
-    if (!name || !gender || !ageGroup || !email) {
-      return res.status(400).json({ error: 'Missing required fields' });
+    // For Apple login, allow creation with appleUserId and name (email may be missing on subsequent logins)
+    if ((!name || !gender || !ageGroup) || (!email && !appleUserId)) {
+      return res.status(400).json({ error: 'Missing required fields (need name, gender, ageGroup, and either email or appleUserId)' });
     }
 
     const user: User = {
       name,
-      email,
+      email: email || '',
       profile: profile || '',
       gender,
       ageGroup,
@@ -48,6 +50,7 @@ export async function createUser(req: Request, res: Response) {
         ageGroup,
         hobbies: hobbies || [],
       },
+      appleUserId: appleUserId || undefined,
     };
 
     const users = getUsersCollection();
@@ -56,7 +59,7 @@ export async function createUser(req: Request, res: Response) {
 
     // Generate JWT token for the new user
     const token = jwt.sign(
-      { userId: result.insertedId.toString(), email: user.email },
+      { userId: result.insertedId.toString(), email: user.email, appleUserId: user.appleUserId },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
@@ -73,22 +76,29 @@ export async function createUser(req: Request, res: Response) {
 
 export async function loginUser(req: Request, res: Response) {
   try {
-    const { email } = req.body;
-    
-    if (!email) {
-      return res.status(400).json({ error: 'Email is required' });
+    const { email, appleUserId } = req.body;
+
+    if (!email && !appleUserId) {
+      return res.status(400).json({ error: 'Email or appleUserId is required' });
     }
 
     const users = getUsersCollection();
-    const user = await users.findOne({ email });
-    
+    let user = null;
+    if (email) {
+      user = await users.findOne({ email });
+    }
+    // If not found by email, or if only appleUserId is provided
+    if (!user && appleUserId) {
+      user = await users.findOne({ appleUserId });
+    }
+
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
     // Generate JWT token
     const token = jwt.sign(
-      { userId: user._id?.toString(), email: user.email },
+      { userId: user._id?.toString(), email: user.email, appleUserId: user.appleUserId },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
