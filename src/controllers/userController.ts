@@ -11,6 +11,7 @@ const JWT_SECRET = process.env.JWT_SECRET as string;
 
 export async function createUser(req: Request, res: Response) {
   try {
+
     const {
       name,
       email,
@@ -22,15 +23,16 @@ export async function createUser(req: Request, res: Response) {
       subscriptionId,
       dailyStoryCount,
       preferences,
+      appleUserId,
     } = req.body;
 
-    if (!name || !gender || !ageGroup || !email) {
+    if (!name || !gender || !ageGroup || (!email && !appleUserId)) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
     const user: User = {
       name,
-      email,
+      email: email || '',
       profile: profile || '',
       gender,
       ageGroup,
@@ -48,6 +50,7 @@ export async function createUser(req: Request, res: Response) {
         ageGroup,
         hobbies: hobbies || [],
       },
+      ...(appleUserId ? { appleUserId } : {}),
     };
 
     const users = getUsersCollection();
