@@ -12,14 +12,14 @@ export const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET as string
 // Product configurations - Replace with your actual price IDs from Stripe
 export const STRIPE_PRODUCTS = {
   monthly: {
-    priceId: 'price_1Rs1S916JeMmx3ntnSjVL6kW', // Replace with your actual monthly price ID
+    priceId: 'price_1S5qq688oblFNHRFYP0AWISp', // Replace with your actual monthly price ID
     name: 'MOSAIC Monthly Premium', 
     price: 499, // $4.99 in cents
     interval: 'month'
   },
   credits10: {
-    productId: 'prod_Sr3K7ubW5EPlTa',
-    priceId: 'price_1RvLDv16JeMmx3ntv7vyMBFK',
+    productId: 'prod_T1ugz4g83PNseG',
+    priceId: 'price_1S5qqm88oblFNHRFnB3OujsH',
     name: '10 Extra Listening Credits',
     price: 299, // $2.99 in cents
     credits: 10,
