@@ -266,38 +266,34 @@ export async function handleStripeWebhook(req: Request, res: Response) {
         const product = paymentIntent.metadata?.product;
         const credits = parseInt(paymentIntent.metadata?.credits || '0', 10);
         if (email && product === 'credits10' && credits > 0) {
-          await incrementUserCredits(users, email, credits);
+          let retries = 0;
+          let success = false;
+          let lastError = null;
+          while (retries < 5 && !success) {
+            try {
+              const result = await users.updateOne(
+                { email },
+                { $inc: { storyListenCredits: 10 } }
+              );
+              if (result.modifiedCount === 1) {
+                success = true;
+                console.log(`Granted ${credits} credits to ${email} for one-time purchase.`);
+              } else {
+                throw new Error('User not found or credits not updated');
+              }
+            } catch (err) {
+              lastError = err;
+              retries++;
+              console.error(`Retrying credit update for ${email} (attempt ${retries}):`, err);
+              await new Promise(res => setTimeout(res, 500 * retries));
+            }
+          }
+          if (!success) {
+            console.error(`Failed to grant credits to ${email} after ${retries} attempts:`, lastError);
+          }
         }
         break;
       }
-// Helper function to increment user credits with retries and logging
-async function incrementUserCredits(users, email, credits) {
-  let retries = 0;
-  let success = false;
-  let lastError = null;
-  while (retries < 5 && !success) {
-    try {
-      const result = await users.updateOne(
-        { email },
-        { $inc: { storyListenCredits: credits } }
-      );
-      if (result.modifiedCount === 1) {
-        success = true;
-        console.log(`Granted ${credits} credits to ${email} for one-time purchase.`);
-      } else {
-        throw new Error('User not found or credits not updated');
-      }
-    } catch (err) {
-      lastError = err;
-      retries++;
-      console.error(`Retrying credit update for ${email} (attempt ${retries}):`, err);
-      await new Promise(res => setTimeout(res, 500 * retries));
-    }
-  }
-  if (!success) {
-    console.error(`Failed to grant credits to ${email} after ${retries} attempts:`, lastError);
-  }
-}
       case 'customer.subscription.created':
         const newSubscription = event.data.object as any;
         const newEmail = newSubscription.metadata?.email;
