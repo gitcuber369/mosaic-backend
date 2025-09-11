@@ -1,3 +1,9 @@
+
+import { Request, Response } from 'express';
+import { stripe, STRIPE_PRODUCTS, STRIPE_WEBHOOK_SECRET } from '../stripeConfig';
+import { getUsersCollection } from '../db';
+import { ObjectId } from 'mongodb';
+
 // One-time purchase of 10 credits
 export async function buyCreditsIntent(req: Request, res: Response) {
   try {
@@ -43,10 +49,6 @@ export async function buyCreditsIntent(req: Request, res: Response) {
     res.status(500).json({ error: 'Failed to create buy credits intent' });
   }
 }
-import { Request, Response } from 'express';
-import { stripe, STRIPE_PRODUCTS, STRIPE_WEBHOOK_SECRET } from '../stripeConfig';
-import { getUsersCollection } from '../db';
-import { ObjectId } from 'mongodb';
 
 // Create a setup intent for subscription
 export async function createPaymentIntent(req: Request, res: Response) {
@@ -200,14 +202,17 @@ export async function createSubscription(req: Request, res: Response) {
     });
 
     // Update user with subscription details (credits will be added via webhook)
+    const userBefore = await users.findOne({ email });
     await users.updateOne(
       { email },
       { 
         $set: { 
           isPremium: true,
-          storyListenCredits: 30,
           stripeSubscriptionId: subscription.id,
           premiumExpiresAt: new Date((subscription as any).current_period_end * 1000)
+        },
+        $inc: {
+          storyListenCredits: 30
         }
       }
     );
@@ -261,34 +266,38 @@ export async function handleStripeWebhook(req: Request, res: Response) {
         const product = paymentIntent.metadata?.product;
         const credits = parseInt(paymentIntent.metadata?.credits || '0', 10);
         if (email && product === 'credits10' && credits > 0) {
-          let retries = 0;
-          let success = false;
-          let lastError = null;
-          while (retries < 5 && !success) {
-            try {
-              const result = await users.updateOne(
-                { email },
-                { $inc: { storyListenCredits: credits } }
-              );
-              if (result.modifiedCount === 1) {
-                success = true;
-                console.log(`Granted ${credits} credits to ${email} for one-time purchase.`);
-              } else {
-                throw new Error('User not found or credits not updated');
-              }
-            } catch (err) {
-              lastError = err;
-              retries++;
-              console.error(`Retrying credit update for ${email} (attempt ${retries}):`, err);
-              await new Promise(res => setTimeout(res, 500 * retries));
-            }
-          }
-          if (!success) {
-            console.error(`Failed to grant credits to ${email} after ${retries} attempts:`, lastError);
-          }
+          await incrementUserCredits(users, email, credits);
         }
         break;
       }
+// Helper function to increment user credits with retries and logging
+async function incrementUserCredits(users, email, credits) {
+  let retries = 0;
+  let success = false;
+  let lastError = null;
+  while (retries < 5 && !success) {
+    try {
+      const result = await users.updateOne(
+        { email },
+        { $inc: { storyListenCredits: credits } }
+      );
+      if (result.modifiedCount === 1) {
+        success = true;
+        console.log(`Granted ${credits} credits to ${email} for one-time purchase.`);
+      } else {
+        throw new Error('User not found or credits not updated');
+      }
+    } catch (err) {
+      lastError = err;
+      retries++;
+      console.error(`Retrying credit update for ${email} (attempt ${retries}):`, err);
+      await new Promise(res => setTimeout(res, 500 * retries));
+    }
+  }
+  if (!success) {
+    console.error(`Failed to grant credits to ${email} after ${retries} attempts:`, lastError);
+  }
+}
       case 'customer.subscription.created':
         const newSubscription = event.data.object as any;
         const newEmail = newSubscription.metadata?.email;
