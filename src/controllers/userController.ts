@@ -229,7 +229,7 @@ export async function deductListenCreditForChapter(req: Request, res: Response) 
     if (user.isPremium) {
       // Premium users should still have their listened history recorded,
       // but no credits should be deducted.
-      console.log('✅ Premium user detected, record listened chapter without deducting credits');
+      console.log('  Premium user detected, record listened chapter without deducting credits');
 
       let listenedChapters = user.listenedChapters || [];
       let storyEntry = listenedChapters.find((entry: any) => entry.storyId?.toString() === storyId);

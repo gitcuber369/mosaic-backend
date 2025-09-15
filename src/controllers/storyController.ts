@@ -121,14 +121,14 @@ export async function createStory(req: Request, res: Response) {
     );
     if (!user.isPremium) {
       if (typeof user.tokens !== 'number' || user.tokens <= 0) {
-        console.log('❌ No generation credits left for userId:', userId);
+        console.log('  No generation credits left for userId:', userId);
         return res.status(403).json({ error: 'No generation credits left' });
       }
       // Deduct 1 generation credit
       await users.updateOne({ _id: new ObjectId(userId) }, { $inc: { tokens: -1 } });
     }
     
-    console.log('✅ User has sufficient generation credits, proceeding with story generation');
+    console.log('  User has sufficient generation credits, proceeding with story generation');
 
 
     // Map age group to number of chapters
@@ -148,11 +148,12 @@ export async function createStory(req: Request, res: Response) {
   const chapterTexts: string[] = [];
   const chapterThemes: string[] = [];
     try {
-      let prompt = `Create a warm, comforting bedtime story in the ${style} style for a ${ageGroup} ${gender} child.
+      let prompt = `
+      Create a warm, comforting bedtime story in the ${style} style for a ${ageGroup} ${gender} child.
 
 STORY REQUIREMENTS:
 
-Main character: "${character}" who enjoys ${hobbies?.join(", ") || 'various activities'}.
+Main character: "${character}" who enjoys ${hobbies.join(', ')}. The character should be relatable and engaging for a child.
 
 Theme: Positive, uplifting, and suitable for bedtime
 
@@ -186,29 +187,40 @@ End with the character feeling content and ready for sleep
 
 CRITICAL: If content violates any guideline above, return empty JSON object: {}
 
+INTRODUCTION NOTE:
+The introduction should not be a part of the story and it should be a summary instead.
+
 RESPONSE FORMAT:
 
 Return ONLY valid minified JSON with NO extra text, comments, or explanations:
 
 {
-  "storyTitle": "Creative, engaging title (3-6 words)",
-  "storyDescription": "Complete story summary for parents (20-30 words)",
-  "introduction": {
-    "title": "Story overview title (2-4 words)",
-    "description": "Brief story synopsis (15-20 words)",
-    "text": "Complete story summary covering all chapters and ending (150-200 words)"
-  },
-  "chapters": [
-    {
-      "title": "Chapter title (2-4 words)",
-      "description": "Chapter summary (10-15 words)",
-      "text": "Full chapter content building toward peaceful resolution (200-250 words)"
-    }${numChapters > 1 ? ', ...' : ''}
-  ]
+
+"storyTitle": "Creative, engaging title (3-6 words)",
+
+"storyDescription": "Complete story summary for parents (20-30 words)",
+
+"introduction": {
+
+"title": "Story overview title (2-4 words)",
+"description": "Brief story synopsis (15-20 words)",
+"text": "Complete story summary covering all chapters and ending (150-200 words)"
+
+},
+
+"chapters": [
+
+{
+  "title": "Chapter title (2-4 words)",
+  "description": "Chapter summary (10-15 words)",
+  "text": "Full chapter content building toward peaceful resolution (200-250 words)"
+}${numChapters > 1 ? ', ...' : ''}
+
+]
+
 }
 
-Generate exactly ${numChapters} chapter${numChapters > 1 ? 's' : ''}. Return ONLY the JSON object.
-`;
+Generate exactly ${numChapters} chapter${numChapters > 1 ? 's' : ''}. Return ONLY the JSON object.`;
 
       const completion = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
@@ -230,7 +242,7 @@ Generate exactly ${numChapters} chapter${numChapters > 1 ? 's' : ''}. Return ONL
         try {
           storyObj = JSON.parse(jsonString);
         } catch (e) {
-          console.error('❌ Failed to parse LLM JSON:', e, jsonString);
+          console.error('  Failed to parse LLM JSON:', e, jsonString);
           return res.status(500).json({ error: 'Failed to parse story JSON from LLM response', details: e });
         }
         storyTitle = storyObj.storyTitle || '';
@@ -260,7 +272,7 @@ Generate exactly ${numChapters} chapter${numChapters > 1 ? 's' : ''}. Return ONL
         }
       }
     } catch (err) {
-      console.error('❌ Error generating story:', err);
+      console.error('  Error generating story:', err);
       return res.status(500).json({ error: 'Failed to generate story', details: err });
     }
 
@@ -281,7 +293,7 @@ Generate exactly ${numChapters} chapter${numChapters > 1 ? 's' : ''}. Return ONL
       });
       console.log('📸 Image generation response:', imageRes);
       if (imageRes && Array.isArray(imageRes.data) && imageRes.data[0] && typeof imageRes.data[0].url === 'string') {
-        console.log('✅ Image generated successfully, downloading...');
+        console.log('  Image generated successfully, downloading...');
         const imageBufferRes = await axios.get(imageRes.data[0].url, { responseType: 'arraybuffer' });
         const imageBuffer = Buffer.from(imageBufferRes.data);
         console.log('📥 Image downloaded, uploading to Cloudinary...');
@@ -295,13 +307,13 @@ Generate exactly ${numChapters} chapter${numChapters > 1 ? 's' : ''}. Return ONL
             }
           );
         });
-        console.log('✅ Image uploaded to Cloudinary:', imageUrl);
+        console.log('  Image uploaded to Cloudinary:', imageUrl);
       } else {
         console.log('⚠️ No image data in response, using empty image URL');
         imageUrl = '';
       }
     } catch (err) {
-      console.error('❌ Error generating or uploading image:', err);
+      console.error('  Error generating or uploading image:', err);
       return res.status(500).json({ error: 'Failed to generate or upload image', details: err });
     }
 
@@ -343,9 +355,9 @@ Generate exactly ${numChapters} chapter${numChapters > 1 ? 's' : ''}. Return ONL
           );
         });
         chapterAudioUrls.push(audioUrl as string);
-        console.log(`✅ Chapter ${i + 1} audio uploaded to Cloudinary:`, audioUrl);
+        console.log(`  Chapter ${i + 1} audio uploaded to Cloudinary:`, audioUrl);
       } catch (err) {
-        console.error(`❌ Error generating or uploading chapter ${i + 1} audio:`, err);
+        console.error(`  Error generating or uploading chapter ${i + 1} audio:`, err);
         return res.status(500).json({ error: `Failed to generate or upload chapter ${i + 1} audio`, details: err });
       }
     }
@@ -383,7 +395,7 @@ Generate exactly ${numChapters} chapter${numChapters > 1 ? 's' : ''}. Return ONL
       character,
       hobbies,
     });
-    console.log('✅ Story saved to database successfully with ID:', result.insertedId);
+    console.log('  Story saved to database successfully with ID:', result.insertedId);
 
     // 7. Deduct credits only after successful story creation
     console.log('💰 Deducting credits after successful story creation...');
@@ -393,12 +405,12 @@ Generate exactly ${numChapters} chapter${numChapters > 1 ? 's' : ''}. Return ONL
     );
 
     if (updateResult.modifiedCount === 0) {
-      console.log('❌ Failed to deduct credits for userId:', userId);
+      console.log('  Failed to deduct credits for userId:', userId);
       // Even if credit deduction fails, the story was created successfully
       // We'll still return success but log the issue
       console.log('⚠️ Story created but credit deduction failed');
     } else {
-      console.log('✅ Credits deducted successfully for userId:', userId);
+      console.log('  Credits deducted successfully for userId:', userId);
     }
 
     console.log('🎉 Story creation completed successfully!');
@@ -409,7 +421,7 @@ Generate exactly ${numChapters} chapter${numChapters > 1 ? 's' : ''}. Return ONL
       image: imageUrl,
     });
   } catch (err) {
-    console.error('❌ Fatal error in story creation:', err);
+    console.error('  Fatal error in story creation:', err);
     // If any step fails, we don't deduct credits since the story wasn't created successfully
     console.log('⚠️ Story creation failed, no credits deducted');
     res.status(500).json({ error: 'Failed to create story', details: err });
@@ -428,10 +440,10 @@ export async function getUserStories(req: Request, res: Response) {
     const stories = getStoriesCollection();
     const userStories = await stories.find({ userId: new ObjectId(userId as string) }).sort({ createdAt: -1 }).toArray();
     
-    console.log('✅ Found stories:', userStories.length);
+    console.log('  Found stories:', userStories.length);
     res.status(200).json(userStories);
   } catch (err) {
-    console.error('❌ Error in getUserStories:', err);
+    console.error('  Error in getUserStories:', err);
     res.status(500).json({ error: 'Failed to fetch stories', details: err });
   }
 }
@@ -461,7 +473,7 @@ export async function getStoryById(req: Request, res: Response) {
     if (userIdString && ObjectId.isValid(userIdString)) {
       const user = await users.findOne({ _id: new ObjectId(userIdString) });
       if (user?.isPremium) {
-        console.log('✅ Premium user detected, skipping credit deduction');
+        console.log('  Premium user detected, skipping credit deduction');
         return res.status(200).json(story);
       }
     }
