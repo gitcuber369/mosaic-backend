@@ -148,8 +148,67 @@ export async function createStory(req: Request, res: Response) {
   const chapterTexts: string[] = [];
   const chapterThemes: string[] = [];
     try {
-      let prompt = `Write a creative, engaging, and age-appropriate children's story in the ${style} style for a ${ageGroup} ${gender} child. The main character is described as \"${character}\" and enjoys.\n\n`;
-      prompt += `Return your response as valid minified JSON (no comments, no trailing commas, no extra text).\n\nThe JSON should have this structure:\n{\n  \"storyTitle\": string,\n  \"storyDescription\": string,\n  \"introduction\": {\n    \"title\": string,\n    \"description\": string,\n    \"text\": string\n  },\n  \"chapters\": [\n    {\n      \"title\": string,\n      \"description\": string,\n      \"text\": string\n    }${numChapters > 1 ? ", ..." : ''}\n  ]\n}\n\nRequirements:\n- The introduction should be about 200-250 words.\n- There should be exactly ${numChapters} chapters.\n- Each chapter must have a unique, creative title (2-4 words), a 1-sentence description (10-15 words), and a chapter text (about 200-250 words).\n- Do not include any explanation or commentary, only the JSON.`;
+      let prompt = `Create a warm, comforting bedtime story in the ${style} style for a ${ageGroup} ${gender} child.
+
+STORY REQUIREMENTS:
+
+Main character: "${character}" who enjoys ${hobbies?.join(", ") || 'various activities'}.
+
+Theme: Positive, uplifting, and suitable for bedtime
+
+Tone: Gentle, soothing, and age-appropriate
+
+Ending: Peaceful resolution that encourages rest and sweet dreams
+
+Values: Friendship, kindness, courage, curiosity, problem-solving, empathy
+
+Setting: Imaginative but not overstimulating before sleep
+
+CONTENT GUIDELINES:
+
+✅ INCLUDE: Nature adventures, magical creatures, cozy settings, gentle humor, learning moments, friendship stories, family bonds, creative problem-solving, celebrations of differences, acts of kindness
+
+❌ AVOID: Scary or intense situations, political themes, real-world conflicts, overly exciting action, violence, adult themes, controversial topics, nightmares, loss or separation anxiety
+
+BEDTIME-SPECIFIC ELEMENTS:
+
+Use calming, descriptive language
+
+Include sensory details (soft textures, gentle sounds, warm feelings)
+
+Build toward a peaceful, satisfying conclusion
+
+Incorporate elements that make children feel safe and loved
+
+Consider including bedtime rituals or cozy environments
+
+End with the character feeling content and ready for sleep
+
+CRITICAL: If content violates any guideline above, return empty JSON object: {}
+
+RESPONSE FORMAT:
+
+Return ONLY valid minified JSON with NO extra text, comments, or explanations:
+
+{
+  "storyTitle": "Creative, engaging title (3-6 words)",
+  "storyDescription": "Complete story summary for parents (20-30 words)",
+  "introduction": {
+    "title": "Story overview title (2-4 words)",
+    "description": "Brief story synopsis (15-20 words)",
+    "text": "Complete story summary covering all chapters and ending (150-200 words)"
+  },
+  "chapters": [
+    {
+      "title": "Chapter title (2-4 words)",
+      "description": "Chapter summary (10-15 words)",
+      "text": "Full chapter content building toward peaceful resolution (200-250 words)"
+    }${numChapters > 1 ? ', ...' : ''}
+  ]
+}
+
+Generate exactly ${numChapters} chapter${numChapters > 1 ? 's' : ''}. Return ONLY the JSON object.
+`;
 
       const completion = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
