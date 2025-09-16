@@ -135,8 +135,8 @@ export async function createStory(req: Request, res: Response) {
     const ageGroupToChapters: Record<string, number> = {
       '0-3': 1,
       '4-6': 2,
-      '7-9': 3,
-      '10-12': 4,
+      '6-9': 3,
+      '9-12': 4,
       '12+': 5,
     };
     const numChapters = ageGroupToChapters[ageGroup] || 3;
