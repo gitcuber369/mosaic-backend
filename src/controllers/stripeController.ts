@@ -323,18 +323,29 @@ export async function handleStripeWebhook(req: Request, res: Response) {
       case "customer.subscription.created": {
         const newSubscription = event.data.object as any;
         const newEmail = newSubscription.metadata?.email;
-        console.log("[Stripe Webhook] Received customer.subscription.created event");
+        console.log(
+          "[Stripe Webhook] Received customer.subscription.created event"
+        );
         console.log("[Stripe Webhook] newEmail:", newEmail);
-        console.log("[Stripe Webhook] newSubscription.status:", newSubscription.status);
+        console.log(
+          "[Stripe Webhook] newSubscription.status:",
+          newSubscription.status
+        );
         if (newEmail && newSubscription.status === "active") {
           try {
             // Log user before update
             const userBefore = await users.findOne({ email: newEmail });
             console.log("[Stripe Webhook] User before update:", userBefore);
-            const incomingPeriodEnd = new Date(newSubscription.current_period_end * 1000);
-            const storedPeriodEnd = userBefore?.premiumExpiresAt ? new Date(userBefore.premiumExpiresAt) : null;
+            const incomingPeriodEnd = new Date(
+              newSubscription.current_period_end * 1000
+            );
+            const storedPeriodEnd = userBefore?.premiumExpiresAt
+              ? new Date(userBefore.premiumExpiresAt)
+              : null;
             // Only grant credits if incoming period end is newer than stored
             if (!storedPeriodEnd || incomingPeriodEnd > storedPeriodEnd) {
+              // Set storyListenCredits to tokens + 30
+              const newCredits = (userBefore?.tokens || 0) + 30;
               const result = await users.updateOne(
                 { email: newEmail },
                 {
@@ -342,9 +353,7 @@ export async function handleStripeWebhook(req: Request, res: Response) {
                     isPremium: true,
                     stripeSubscriptionId: newSubscription.id,
                     premiumExpiresAt: incomingPeriodEnd,
-                  },
-                  $inc: {
-                    storyListenCredits: 30,
+                    storyListenCredits: newCredits,
                   },
                 }
               );
@@ -359,10 +368,15 @@ export async function handleStripeWebhook(req: Request, res: Response) {
                 throw new Error("User not found or subscription not updated");
               }
             } else {
-              console.log(`[Stripe Webhook] Duplicate event ignored for ${newEmail}`);
+              console.log(
+                `[Stripe Webhook] Duplicate event ignored for ${newEmail}`
+              );
             }
           } catch (err) {
-            console.error(`Failed to update subscription for ${newEmail}:`, err);
+            console.error(
+              `Failed to update subscription for ${newEmail}:`,
+              err
+            );
           }
         }
         break;
