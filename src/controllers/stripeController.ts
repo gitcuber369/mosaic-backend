@@ -11,6 +11,7 @@ export async function buyCreditsIntent(req: Request, res: Response) {
   try {
     const { email } = req.body;
     if (!email) {
+      console.error("[buyCreditsIntent] No email provided in request body.");
       return res.status(400).json({ error: "Email is required" });
     }
     const users = getUsersCollection();
@@ -45,12 +46,13 @@ export async function buyCreditsIntent(req: Request, res: Response) {
         credits: product.credits.toString(),
       },
     });
+    console.log(`[buyCreditsIntent] PaymentIntent created successfully for email: ${email}, paymentIntentId: ${paymentIntent.id}`);
     res.json({
       clientSecret: paymentIntent.client_secret,
       paymentIntentId: paymentIntent.id,
     });
   } catch (error) {
-    console.error("Error creating buy credits intent:", error);
+    console.error(`[buyCreditsIntent] Error creating buy credits intent for email: ${req.body?.email || "unknown"}:`, error);
     res.status(500).json({ error: "Failed to create buy credits intent" });
   }
 }
