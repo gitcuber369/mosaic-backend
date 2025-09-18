@@ -781,7 +781,7 @@ export async function generateChapter(req: Request, res: Response) {
 export async function getPaginatedStories(req: Request, res: Response) {
   try {
     const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 5;
+    const limit = parseInt(req.query.limit as string) || 30;
     const skip = (page - 1) * limit;
     const storiesCollection = getStoriesCollection();
     const stories = await storiesCollection
