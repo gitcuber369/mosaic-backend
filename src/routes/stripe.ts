@@ -1,16 +1,16 @@
-import express from 'express';
-import { 
-  createPaymentIntent, 
-  handleStripeWebhook, 
-  cancelSubscription, 
-  getSubscriptionStatus,
+import bodyParser from "body-parser";
+import express from "express";
+import {
+  buyCreditsIntent,
+  cancelSubscription,
+  createPaymentIntent,
   createSubscription,
   debugUser,
+  getSubscriptionStatus,
+  handleStripeWebhook,
   resetUserPremium,
-  buyCreditsIntent
-} from '../controllers/stripeController';
-import { authenticateToken } from '../middleware/auth';
-
+} from "../controllers/stripeController";
+import { authenticateToken } from "../middleware/auth";
 // One-time payment intent for 10 credits
 const router = express.Router();
 
@@ -198,19 +198,25 @@ const router = express.Router();
 
 // Public: Stripe webhook must remain public
 // Stripe webhook must use raw body parser for signature verification
-router.post('/webhook', express.raw({ type: 'application/json' }), handleStripeWebhook);
+router.post(
+  "/webhook",
+  bodyParser.raw({ type: "application/json" }),
+  handleStripeWebhook
+);
 
 // Protected routes
-router.post('/create-payment-intent', authenticateToken, createPaymentIntent);
-router.post('/create-subscription', authenticateToken, createSubscription);
-router.post('/cancel-subscription', authenticateToken, cancelSubscription);
-router.get('/subscription-status/:email', authenticateToken, getSubscriptionStatus);
-router.get('/debug-user/:email', authenticateToken, debugUser);
-router.post('/reset-premium/:email', authenticateToken, resetUserPremium);
-router.post('/buy-credits', authenticateToken, buyCreditsIntent);
-
+router.post("/create-payment-intent", authenticateToken, createPaymentIntent);
+router.post("/create-subscription", authenticateToken, createSubscription);
+router.post("/cancel-subscription", authenticateToken, cancelSubscription);
+router.get(
+  "/subscription-status/:email",
+  authenticateToken,
+  getSubscriptionStatus
+);
+router.get("/debug-user/:email", authenticateToken, debugUser);
+router.post("/reset-premium/:email", authenticateToken, resetUserPremium);
+router.post("/buy-credits", authenticateToken, buyCreditsIntent);
 
 export default router;
-
 
 // hey there
