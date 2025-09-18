@@ -336,10 +336,7 @@ export async function handleStripeWebhook(req: Request, res: Response) {
               throw new Error("User not found or credits not updated");
             }
           } catch (err) {
-            console.error(
-              `Failed to grant credits to ${email}:`,
-              err
-            );
+            console.error(`Failed to grant credits to ${email}:`, err);
           }
         }
         break;
@@ -365,8 +362,7 @@ export async function handleStripeWebhook(req: Request, res: Response) {
               {
                 $set: {
                   isPremium: true,
-                  storyListenCredits:
-                    (userBefore?.storyListenCredits || 0) + 30,
+
                   stripeSubscriptionId: newSubscription.id,
                   premiumExpiresAt: new Date(
                     newSubscription.current_period_end * 1000
