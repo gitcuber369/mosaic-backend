@@ -315,7 +315,7 @@ export async function handleStripeWebhook(req: Request, res: Response) {
               if (result.modifiedCount === 1) {
                 success = true;
                 console.log(
-                  `Granted ${credits} credits to ${email} for one-time purchase.`
+                  `\n==================== [STRIPE WEBHOOK SUCCESS] ====================\n🎉 Successfully granted ${credits} storyListenCredits to user: ${email} for one-time purchase!\n===============================================================\n`
                 );
               } else {
                 throw new Error("User not found or credits not updated");

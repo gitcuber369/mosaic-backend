@@ -197,6 +197,7 @@ const router = express.Router();
  */
 
 // Public: Stripe webhook must remain public
+// Stripe webhook must use raw body parser for signature verification
 router.post('/webhook', express.raw({ type: 'application/json' }), handleStripeWebhook);
 
 // Protected routes
