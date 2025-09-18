@@ -616,7 +616,7 @@ export async function cancelSubscription(req: Request, res: Response) {
     }
 
     // Set isCanceled: true immediately in the user document
-    await users.updateOne({ email }, { $set: { isCanceled: true } });
+    await users.updateOne({ email }, { $set: { isCancelled: true } });
 
     // Cancel subscription at period end
     await stripe.subscriptions.update(user.stripeSubscriptionId, {

@@ -19,7 +19,7 @@ export async function createUser(req: Request, res: Response) {
       ageGroup,
       hobbies,
       isPremium,
-      isCanceled,
+      isCancelled,
       subscriptionId,
       dailyStoryCount,
       preferences,
