@@ -469,9 +469,8 @@ export async function handleStripeWebhook(req: Request, res: Response) {
             const result = await users.updateOne(
               { email: deletedEmail },
               {
-                $set: {
-                  isPremium: false,
-                },
+                $set: { isCancelled: true, isPremium: false },
+
                 $unset: {
                   stripeSubscriptionId: "",
                   premiumExpiresAt: "",
@@ -615,6 +614,9 @@ export async function cancelSubscription(req: Request, res: Response) {
     if (!user?.stripeSubscriptionId) {
       return res.status(404).json({ error: "No active subscription found" });
     }
+
+    // Set isCanceled: true immediately in the user document
+    await users.updateOne({ email }, { $set: { isCanceled: true } });
 
     // Cancel subscription at period end
     await stripe.subscriptions.update(user.stripeSubscriptionId, {

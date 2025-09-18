@@ -19,6 +19,7 @@ export async function createUser(req: Request, res: Response) {
       ageGroup,
       hobbies,
       isPremium,
+      isCanceled,
       subscriptionId,
       dailyStoryCount,
       preferences,
@@ -44,6 +45,7 @@ export async function createUser(req: Request, res: Response) {
       preferences: preferences || [],
       createdAt: new Date(),
       storyListenCredits: 30, // 30 listening credits
+      isCancelled: false,
       lastStoryRecipient: {
         name,
         gender,

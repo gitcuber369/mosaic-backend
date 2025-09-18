@@ -1,4 +1,4 @@
-import { ObjectId } from 'mongodb';
+import { ObjectId } from "mongodb";
 
 export interface User {
   _id?: ObjectId;
@@ -26,14 +26,18 @@ export interface User {
   };
   storyCreationCredits?: number; // Deprecated - now using storyListenCredits for both generation and listening
   storyListenCredits: number;
-  listenedChapters?: Array<{ storyId: ObjectId; chapters: number[]; lastPlayedAt?: Date }>;
+  listenedChapters?: Array<{
+    storyId: ObjectId;
+    chapters: number[];
+    lastPlayedAt?: Date;
+  }>;
   // Stripe-related fields
   stripeCustomerId?: string;
   stripeSubscriptionId?: string;
   premiumExpiresAt?: Date;
-  isCancelled?: boolean;
+  isCancelled: boolean;
   /**
    * Apple Sign-In unique user identifier
    */
   appleUserId?: string;
-} 
+}
