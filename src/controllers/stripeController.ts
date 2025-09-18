@@ -306,60 +306,45 @@ export async function handleStripeWebhook(req: Request, res: Response) {
         const product = paymentIntent.metadata?.product;
         const credits = parseInt(paymentIntent.metadata?.credits || "0", 10);
         if (email && product === "credits10" && credits > 0) {
-          let retries = 0;
-          let success = false;
-          let lastError = null;
-          while (retries < 5 && !success) {
-            try {
-              // Log user before update
-              const userBefore = await users.findOne({ email });
+          try {
+            // Log user before update
+            const userBefore = await users.findOne({ email });
+            console.log(
+              "[Stripe Webhook] [payment_intent.succeeded] User before update:",
+              userBefore
+            );
+            const result = await users.updateOne(
+              { email },
+              { $inc: { storyListenCredits: 10 } }
+            );
+            // Log update result
+            console.log(
+              "[Stripe Webhook] [payment_intent.succeeded] updateOne result:",
+              result
+            );
+            // Log user after update
+            const userAfter = await users.findOne({ email });
+            console.log(
+              "[Stripe Webhook] [payment_intent.succeeded] User after update:",
+              userAfter
+            );
+            if (result.modifiedCount === 1) {
               console.log(
-                "[Stripe Webhook] [payment_intent.succeeded] User before update:",
-                userBefore
+                `Granted ${credits} credits to ${email} for one-time purchase.`
               );
-              const result = await users.updateOne(
-                { email },
-                { $inc: { storyListenCredits: 10 } }
-              );
-              // Log update result
-              console.log(
-                "[Stripe Webhook] [payment_intent.succeeded] updateOne result:",
-                result
-              );
-              // Log user after update
-              const userAfter = await users.findOne({ email });
-              console.log(
-                "[Stripe Webhook] [payment_intent.succeeded] User after update:",
-                userAfter
-              );
-              if (result.modifiedCount === 1) {
-                success = true;
-                console.log(
-                  `Granted ${credits} credits to ${email} for one-time purchase.`
-                );
-              } else {
-                throw new Error("User not found or credits not updated");
-              }
-            } catch (err) {
-              lastError = err;
-              retries++;
-              console.error(
-                `Retrying credit update for ${email} (attempt ${retries}):`,
-                err
-              );
-              await new Promise((res) => setTimeout(res, 500 * retries));
+            } else {
+              throw new Error("User not found or credits not updated");
             }
-          }
-          if (!success) {
+          } catch (err) {
             console.error(
-              `Failed to grant credits to ${email} after ${retries} attempts:`,
-              lastError
+              `Failed to grant credits to ${email}:`,
+              err
             );
           }
         }
         break;
       }
-      case "customer.subscription.created":
+      case "customer.subscription.created": {
         const newSubscription = event.data.object as any;
         const newEmail = newSubscription.metadata?.email;
         console.log(
@@ -371,62 +356,48 @@ export async function handleStripeWebhook(req: Request, res: Response) {
           newSubscription.status
         );
         if (newEmail && newSubscription.status === "active") {
-          let retries = 0;
-          let success = false;
-          let lastError = null;
-          while (retries < 5 && !success) {
-            try {
-              // Log user before update
-              const userBefore = await users.findOne({ email: newEmail });
-              console.log("[Stripe Webhook] User before update:", userBefore);
-              const result = await users.updateOne(
-                { email: newEmail },
-                {
-                  $set: {
-                    isPremium: true,
-                    storyListenCredits:
-                      (userBefore?.storyListenCredits || 0) + 30,
-                    stripeSubscriptionId: newSubscription.id,
-                    premiumExpiresAt: new Date(
-                      newSubscription.current_period_end * 1000
-                    ),
-                  },
-                  $inc: {
-                    storyListenCredits: 30,
-                  },
-                }
-              );
-              // Log update result
-              console.log("[Stripe Webhook] updateOne result:", result);
-              // Log user after update
-              const userAfter = await users.findOne({ email: newEmail });
-              console.log("[Stripe Webhook] User after update:", userAfter);
-              if (result.modifiedCount === 1) {
-                success = true;
-                console.log(`Granted subscription and credits to ${newEmail}`);
-              } else {
-                throw new Error("User not found or subscription not updated");
+          try {
+            // Log user before update
+            const userBefore = await users.findOne({ email: newEmail });
+            console.log("[Stripe Webhook] User before update:", userBefore);
+            const result = await users.updateOne(
+              { email: newEmail },
+              {
+                $set: {
+                  isPremium: true,
+                  storyListenCredits:
+                    (userBefore?.storyListenCredits || 0) + 30,
+                  stripeSubscriptionId: newSubscription.id,
+                  premiumExpiresAt: new Date(
+                    newSubscription.current_period_end * 1000
+                  ),
+                },
+                $inc: {
+                  storyListenCredits: 30,
+                },
               }
-            } catch (err) {
-              lastError = err;
-              retries++;
-              console.error(
-                `Retrying subscription update for ${newEmail} (attempt ${retries}):`,
-                err
-              );
-              await new Promise((res) => setTimeout(res, 500 * retries));
+            );
+            // Log update result
+            console.log("[Stripe Webhook] updateOne result:", result);
+            // Log user after update
+            const userAfter = await users.findOne({ email: newEmail });
+            console.log("[Stripe Webhook] User after update:", userAfter);
+            if (result.modifiedCount === 1) {
+              console.log(`Granted subscription and credits to ${newEmail}`);
+            } else {
+              throw new Error("User not found or subscription not updated");
             }
-          }
-          if (!success) {
+          } catch (err) {
             console.error(
-              `Failed to update subscription for ${newEmail} after ${retries} attempts:`,
-              lastError
+              `Failed to update subscription for ${newEmail}:`,
+              err
             );
           }
         }
         break;
+      }
 
-      case "customer.subscription.updated":
+      case "customer.subscription.updated": {
         const updatedSubscription = event.data.object as any;
         const updatedEmail = updatedSubscription.metadata?.email;
 
@@ -441,187 +412,130 @@ export async function handleStripeWebhook(req: Request, res: Response) {
 
             // If the expiry date has increased, it's a renewal
             if (newExpiry > previousExpiry) {
-              let retries = 0;
-              let success = false;
-              let lastError = null;
-              while (retries < 5 && !success) {
-                try {
-                  const result = await users.updateOne(
-                    { email: updatedEmail },
-                    {
-                      $set: {
-                        isPremium: true,
-                        stripeSubscriptionId: updatedSubscription.id,
-                        premiumExpiresAt: new Date(
-                          updatedSubscription.current_period_end * 1000
-                        ),
-                      },
-                      $inc: {
-                        storyListenCredits: 30,
-                      },
-                    }
-                  );
-                  if (result.modifiedCount === 1) {
-                    success = true;
-                    console.log(
-                      `Renewed subscription and granted credits to ${updatedEmail}`
-                    );
-                  } else {
-                    throw new Error("User not found or renewal not updated");
+              try {
+                const result = await users.updateOne(
+                  { email: updatedEmail },
+                  {
+                    $set: {
+                      isPremium: true,
+                      stripeSubscriptionId: updatedSubscription.id,
+                      premiumExpiresAt: new Date(
+                        updatedSubscription.current_period_end * 1000
+                      ),
+                    },
+                    $inc: {
+                      storyListenCredits: 30,
+                    },
                   }
-                } catch (err) {
-                  lastError = err;
-                  retries++;
-                  console.error(
-                    `Retrying renewal update for ${updatedEmail} (attempt ${retries}):`,
-                    err
+                );
+                if (result.modifiedCount === 1) {
+                  console.log(
+                    `Renewed subscription and granted credits to ${updatedEmail}`
                   );
-                  await new Promise((res) => setTimeout(res, 500 * retries));
+                } else {
+                  throw new Error("User not found or renewal not updated");
                 }
-              }
-              if (!success) {
+              } catch (err) {
                 console.error(
-                  `Failed to update renewal for ${updatedEmail} after ${retries} attempts:`,
-                  lastError
+                  `Failed to update renewal for ${updatedEmail}:`,
+                  err
                 );
               }
             } else {
               // Just update the subscription details without adding credits
-              let retries = 0;
-              let success = false;
-              let lastError = null;
-              while (retries < 5 && !success) {
-                try {
-                  const result = await users.updateOne(
-                    { email: updatedEmail },
-                    {
-                      $set: {
-                        isPremium: true,
-                        stripeSubscriptionId: updatedSubscription.id,
-                        premiumExpiresAt: new Date(
-                          updatedSubscription.current_period_end * 1000
-                        ),
-                      },
-                    }
-                  );
-                  if (result.modifiedCount === 1) {
-                    success = true;
-                    console.log(
-                      `Updated subscription details for ${updatedEmail}`
-                    );
-                  } else {
-                    throw new Error("User not found or details not updated");
+              try {
+                const result = await users.updateOne(
+                  { email: updatedEmail },
+                  {
+                    $set: {
+                      isPremium: true,
+                      stripeSubscriptionId: updatedSubscription.id,
+                      premiumExpiresAt: new Date(
+                        updatedSubscription.current_period_end * 1000
+                      ),
+                    },
                   }
-                } catch (err) {
-                  lastError = err;
-                  retries++;
-                  console.error(
-                    `Retrying subscription details update for ${updatedEmail} (attempt ${retries}):`,
-                    err
+                );
+                if (result.modifiedCount === 1) {
+                  console.log(
+                    `Updated subscription details for ${updatedEmail}`
                   );
-                  await new Promise((res) => setTimeout(res, 500 * retries));
+                } else {
+                  throw new Error("User not found or details not updated");
                 }
-              }
-              if (!success) {
+              } catch (err) {
                 console.error(
-                  `Failed to update subscription details for ${updatedEmail} after ${retries} attempts:`,
-                  lastError
+                  `Failed to update subscription details for ${updatedEmail}:`,
+                  err
                 );
               }
             }
           }
         }
         break;
+      }
 
-      case "customer.subscription.deleted":
+      case "customer.subscription.deleted": {
         const deletedSubscription = event.data.object as any;
         const deletedEmail = deletedSubscription.metadata?.email;
 
         if (deletedEmail) {
-          let retries = 0;
-          let success = false;
-          let lastError = null;
-          while (retries < 5 && !success) {
-            try {
-              const result = await users.updateOne(
-                { email: deletedEmail },
-                {
-                  $set: {
-                    isPremium: false,
-                  },
-                  $unset: {
-                    stripeSubscriptionId: "",
-                    premiumExpiresAt: "",
-                  },
-                }
-              );
-              if (result.modifiedCount === 1) {
-                success = true;
-                console.log(`Subscription deleted for ${deletedEmail}`);
-              } else {
-                throw new Error("User not found or subscription not deleted");
+          try {
+            const result = await users.updateOne(
+              { email: deletedEmail },
+              {
+                $set: {
+                  isPremium: false,
+                },
+                $unset: {
+                  stripeSubscriptionId: "",
+                  premiumExpiresAt: "",
+                },
               }
-            } catch (err) {
-              lastError = err;
-              retries++;
-              console.error(
-                `Retrying subscription delete for ${deletedEmail} (attempt ${retries}):`,
-                err
-              );
-              await new Promise((res) => setTimeout(res, 500 * retries));
+            );
+            if (result.modifiedCount === 1) {
+              console.log(`Subscription deleted for ${deletedEmail}`);
+            } else {
+              throw new Error("User not found or subscription not deleted");
             }
-          }
-          if (!success) {
+          } catch (err) {
             console.error(
-              `Failed to delete subscription for ${deletedEmail} after ${retries} attempts:`,
-              lastError
+              `Failed to delete subscription for ${deletedEmail}:`,
+              err
             );
           }
         }
         break;
+      }
 
-      case "invoice.payment_failed":
+      case "invoice.payment_failed": {
         const invoice = event.data.object as any;
         const failedEmail = invoice.metadata?.email;
 
         if (failedEmail) {
-          let retries = 0;
-          let success = false;
-          let lastError = null;
-          while (retries < 5 && !success) {
-            try {
-              const result = await users.updateOne(
-                { email: failedEmail },
-                { $set: { isPremium: false } }
+          try {
+            const result = await users.updateOne(
+              { email: failedEmail },
+              { $set: { isPremium: false } }
+            );
+            if (result.modifiedCount === 1) {
+              console.log(
+                `Set isPremium false for ${failedEmail} after payment failed`
               );
-              if (result.modifiedCount === 1) {
-                success = true;
-                console.log(
-                  `Set isPremium false for ${failedEmail} after payment failed`
-                );
-              } else {
-                throw new Error("User not found or isPremium not updated");
-              }
-            } catch (err) {
-              lastError = err;
-              retries++;
-              console.error(
-                `Retrying isPremium update for ${failedEmail} (attempt ${retries}):`,
-                err
-              );
-              await new Promise((res) => setTimeout(res, 500 * retries));
+            } else {
+              throw new Error("User not found or isPremium not updated");
             }
-          }
-          if (!success) {
+          } catch (err) {
             console.error(
-              `Failed to update isPremium for ${failedEmail} after ${retries} attempts:`,
-              lastError
+              `Failed to update isPremium for ${failedEmail}:`,
+              err
             );
           }
         }
         break;
+      }
 
-      case "setup_intent.succeeded":
+      case "setup_intent.succeeded": {
         const setupIntent = event.data.object as any;
         const setupEmail = setupIntent.metadata?.email;
 
@@ -650,51 +564,36 @@ export async function handleStripeWebhook(req: Request, res: Response) {
                   },
                 });
 
-                let retries = 0;
-                let success = false;
-                let lastError = null;
-                while (retries < 5 && !success) {
-                  try {
-                    const result = await users.updateOne(
-                      { email: setupEmail },
-                      {
-                        $set: {
-                          isPremium: true,
-                          stripeSubscriptionId: subscription.id,
-                          premiumExpiresAt: new Date(
-                            (subscription as any).current_period_end * 1000
-                          ),
-                        },
-                        $inc: {
-                          storyListenCredits: 30,
-                        },
-                      }
-                    );
-                    if (result.modifiedCount === 1) {
-                      success = true;
-                      console.log(
-                        "Subscription created successfully:",
-                        subscription.id
-                      );
-                    } else {
-                      throw new Error(
-                        "User not found or subscription not updated"
-                      );
+                try {
+                  const result = await users.updateOne(
+                    { email: setupEmail },
+                    {
+                      $set: {
+                        isPremium: true,
+                        stripeSubscriptionId: subscription.id,
+                        premiumExpiresAt: new Date(
+                          (subscription as any).current_period_end * 1000
+                        ),
+                      },
+                      $inc: {
+                        storyListenCredits: 30,
+                      },
                     }
-                  } catch (err) {
-                    lastError = err;
-                    retries++;
-                    console.error(
-                      `Retrying subscription create for ${setupEmail} (attempt ${retries}):`,
-                      err
+                  );
+                  if (result.modifiedCount === 1) {
+                    console.log(
+                      "Subscription created successfully:",
+                      subscription.id
                     );
-                    await new Promise((res) => setTimeout(res, 500 * retries));
+                  } else {
+                    throw new Error(
+                      "User not found or subscription not updated"
+                    );
                   }
-                }
-                if (!success) {
+                } catch (err) {
                   console.error(
-                    `Failed to create subscription for ${setupEmail} after ${retries} attempts:`,
-                    lastError
+                    `Failed to create subscription for ${setupEmail}:`,
+                    err
                   );
                 }
               }
@@ -708,6 +607,7 @@ export async function handleStripeWebhook(req: Request, res: Response) {
           }
         }
         break;
+      }
     }
 
     res.json({ received: true });
