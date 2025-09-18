@@ -200,7 +200,6 @@ const router = express.Router();
 // Stripe webhook must use raw body parser for signature verification
 router.post(
   "/webhook",
-  bodyParser.raw({ type: "application/json" }),
   handleStripeWebhook
 );
 
