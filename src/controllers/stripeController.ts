@@ -1,5 +1,3 @@
-// Utility: Increase storyListenCredits by 10 for a user
-
 import { Request, Response } from "express";
 import { getUsersCollection } from "../db";
 import {
@@ -13,7 +11,6 @@ export async function buyCreditsIntent(req: Request, res: Response) {
   try {
     const { email } = req.body;
     if (!email) {
-      console.error("[buyCreditsIntent] No email provided in request body.");
       return res.status(400).json({ error: "Email is required" });
     }
     const users = getUsersCollection();
@@ -48,20 +45,12 @@ export async function buyCreditsIntent(req: Request, res: Response) {
         credits: product.credits.toString(),
       },
     });
-    console.log(
-      `[buyCreditsIntent] PaymentIntent created successfully for email: ${email}, paymentIntentId: ${paymentIntent.id}`
-    );
     res.json({
       clientSecret: paymentIntent.client_secret,
       paymentIntentId: paymentIntent.id,
     });
   } catch (error) {
-    console.error(
-      `[buyCreditsIntent] Error creating buy credits intent for email: ${
-        req.body?.email || "unknown"
-      }:`,
-      error
-    );
+    console.error("Error creating buy credits intent:", error);
     res.status(500).json({ error: "Failed to create buy credits intent" });
   }
 }
@@ -322,17 +311,34 @@ export async function handleStripeWebhook(req: Request, res: Response) {
           let lastError = null;
           while (retries < 5 && !success) {
             try {
-              // Use the utility function for atomic credit update
-              const result = await addStoryListenCredits(email, credits);
-              if (result.success) {
+              // Log user before update
+              const userBefore = await users.findOne({ email });
+              console.log(
+                "[Stripe Webhook] [payment_intent.succeeded] User before update:",
+                userBefore
+              );
+              const result = await users.updateOne(
+                { email },
+                { $inc: { storyListenCredits: 10 } }
+              );
+              // Log update result
+              console.log(
+                "[Stripe Webhook] [payment_intent.succeeded] updateOne result:",
+                result
+              );
+              // Log user after update
+              const userAfter = await users.findOne({ email });
+              console.log(
+                "[Stripe Webhook] [payment_intent.succeeded] User after update:",
+                userAfter
+              );
+              if (result.modifiedCount === 1) {
                 success = true;
                 console.log(
-                  `\n==================== [STRIPE WEBHOOK SUCCESS] ====================\n🎉 Successfully granted ${credits} storyListenCredits to user: ${email} for one-time purchase!\n===============================================================\n`
+                  `Granted ${credits} credits to ${email} for one-time purchase.`
                 );
               } else {
-                throw new Error(
-                  result.error || "User not found or credits not updated"
-                );
+                throw new Error("User not found or credits not updated");
               }
             } catch (err) {
               lastError = err;
