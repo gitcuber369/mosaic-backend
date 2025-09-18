@@ -353,7 +353,7 @@ export async function handleStripeWebhook(req: Request, res: Response) {
                     isPremium: true,
                     stripeSubscriptionId: newSubscription.id,
                     premiumExpiresAt: incomingPeriodEnd,
-                    storyListenCredits: (userBefore?.tokens || 0) + 30,
+                    storyListenCredits: 30,
                   },
                 }
               );
