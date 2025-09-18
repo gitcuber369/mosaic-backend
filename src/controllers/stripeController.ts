@@ -56,26 +56,6 @@ export async function buyCreditsIntent(req: Request, res: Response) {
 }
 
 // Utility: Increase storyListenCredits by N for a user
-async function addStoryListenCredits(
-  email: string,
-  credits: number = 10
-): Promise<{ success: boolean; user?: any; error?: any }> {
-  try {
-    if (!email) return { success: false, error: "Email is required" };
-    const users = getUsersCollection();
-    const result = await users.findOneAndUpdate(
-      { email },
-      { $inc: { storyListenCredits: credits } },
-      { returnDocument: "after" }
-    );
-    if (!result || !("value" in result) || !result.value) {
-      return { success: false, error: "User not found" };
-    }
-    return { success: true, user: result.value };
-  } catch (error) {
-    return { success: false, error };
-  }
-}
 
 // Create a setup intent for subscription
 export async function createPaymentIntent(req: Request, res: Response) {
@@ -252,7 +232,6 @@ export async function createSubscription(req: Request, res: Response) {
           premiumExpiresAt: new Date(
             (subscription as any).current_period_end * 1000
           ),
-          storyListenCredits: (userBefore?.tokens || 0) + 30,
         },
       }
     );
