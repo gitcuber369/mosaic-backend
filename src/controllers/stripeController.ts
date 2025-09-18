@@ -559,9 +559,7 @@ export async function handleStripeWebhook(req: Request, res: Response) {
                         premiumExpiresAt: new Date(
                           (subscription as any).current_period_end * 1000
                         ),
-                      },
-                      $inc: {
-                        storyListenCredits: 30,
+                        storyListenCredits: (user?.tokens || 0) + 30,
                       },
                     }
                   );
