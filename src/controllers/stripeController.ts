@@ -345,7 +345,7 @@ export async function handleStripeWebhook(req: Request, res: Response) {
             // Only grant credits if incoming period end is newer than stored
             if (!storedPeriodEnd || incomingPeriodEnd > storedPeriodEnd) {
               // Set storyListenCredits to tokens + 30
-              const newCredits = (userBefore?.tokens || 0) + 30;
+
               const result = await users.updateOne(
                 { email: newEmail },
                 {
@@ -353,7 +353,7 @@ export async function handleStripeWebhook(req: Request, res: Response) {
                     isPremium: true,
                     stripeSubscriptionId: newSubscription.id,
                     premiumExpiresAt: incomingPeriodEnd,
-                    storyListenCredits: newCredits,
+                    storyListenCredits: (userBefore?.tokens || 0) + 30,
                   },
                 }
               );
