@@ -781,16 +781,29 @@ export async function generateChapter(req: Request, res: Response) {
 export async function getPaginatedStories(req: Request, res: Response) {
   try {
     const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 30;
+    const limit = parseInt(req.query.limit as string) || 50;
     const skip = (page - 1) * limit;
+    // Build filter query from request
+    const query: any = {};
+    if (req.query.age) query.ageGroup = req.query.age;
+    if (req.query.voice) query.voice = req.query.voice;
+    if (req.query.style) query.style = req.query.style;
+    if (req.query.themes) {
+      const themesArr = Array.isArray(req.query.themes)
+        ? req.query.themes
+        : String(req.query.themes)
+            .split(",")
+            .map((t) => t.trim());
+      query.themes = { $in: themesArr };
+    }
     const storiesCollection = getStoriesCollection();
     const stories = await storiesCollection
-      .find({})
+      .find(query)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
       .toArray();
-    const total = await storiesCollection.countDocuments();
+    const total = await storiesCollection.countDocuments(query);
     res.json({
       stories,
       page,
