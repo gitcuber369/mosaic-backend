@@ -203,84 +203,69 @@ export async function createStory(req: Request, res: Response) {
     const chapterDescriptions: string[] = [];
     const chapterTexts: string[] = [];
     const chapterThemes: string[] = [];
+    let parsedStoryObj: any = null;
+    
+    // Style-specific instructions adapted from Python code
+    const styleInstructions: Record<string, string> = {
+      "adventure": "Write this story in an ADVENTURE style - focus on exciting quests, exploration, and thrilling discoveries. Include elements like journeys, challenges to overcome, and brave actions.",
+      "fantasy": "Write this story in a FANTASY style - include magical worlds, fantastical creatures, and wonderous elements. Use imaginative settings and magical abilities or objects.",
+      "funny": "Write this story in a FUNNY style - make it lighthearted, silly, and full of laughs. Include humorous situations, funny characters, and playful dialogue.",
+      "educational": "Write this story in an EDUCATIONAL style - teach facts or skills in a fun way. Include learning opportunities, interesting information, and problem-solving elements.",
+      "friendship": "Write this story in a FRIENDSHIP style - focus on building bonds, kindness, and cooperation. Emphasize relationships, helping others, and working together.",
+      "fairy_tale": "Write this story in a FAIRY TALE style - use classic whimsical tone, include elements like royalty, wonder, and traditional fairy tale structure with a moral lesson.",
+      "bedtime_calm": "Write this story in a BEDTIME CALM style - make it gentle, soothing, and slow-paced. Use peaceful imagery, calming language, and a relaxing atmosphere.",
+      "inspiring": "Write this story in an INSPIRING style - make it uplifting and encouraging. Focus on positive messages, overcoming challenges, and personal growth."
+    };
+    
+    const styleInstruction = styleInstructions[style] || "";
+    
     try {
       let prompt = `
-      Create a warm, comforting bedtime story in the ${style} style for a ${ageGroup} ${gender} child.
+You are a master children's author tasked with crafting a world-class bedtime story.
 
-STORY REQUIREMENTS:
+Write a children's bedtime story about: "${character}" who enjoys ${hobbies.join(", ")}. 
+Age group: ${ageGroup}
+Gender: ${gender}
+${styleInstruction}
 
-Main character: "${character}" who enjoys ${hobbies.join(
-        ", "
-      )}. The character should be relatable and engaging for a child.
+QUALITY GUIDELINES:
+1. Prioritize high narrative quality: rich but age-appropriate language, emotional depth, vivid sensory details, and memorable characters.
+2. Give the main and supporting characters distinct, memorable personalities with defining traits and quirks, revealed through actions and dialogue.
+3. Include unexpected twists, tense or puzzling situations, and clever resolutions.
+4. Absolutely avoid clichés and generic phrasing; favor fresh, original imagery and playful, lyrical prose.
+5. Contain clear stakes (something could be lost or saved).
+6. End with a satisfying resolution and uplifting tone.
+7. Include lively dialogues between characters that clearly express emotions (e.g., excitement, worry, joy) for optimal audio playback.
+8. Think deeply about interesting story situations that are fun and unpredictable.
 
-Theme: Positive, uplifting, and suitable for bedtime
-
-Tone: Gentle, soothing, and age-appropriate
-
-Ending: Peaceful resolution that encourages rest and sweet dreams
-
-Values: Friendship, kindness, courage, curiosity, problem-solving, empathy
-
-Setting: Imaginative but not overstimulating before sleep
-
-CONTENT GUIDELINES:
-
-✅ INCLUDE: Nature adventures, magical creatures, cozy settings, gentle humor, learning moments, friendship stories, family bonds, creative problem-solving, celebrations of differences, acts of kindness
-
-❌ AVOID: Scary or intense situations, political themes, real-world conflicts, overly exciting action, violence, adult themes, controversial topics, nightmares, loss or separation anxiety
-
-BEDTIME-SPECIFIC ELEMENTS:
-
-Use calming, descriptive language
-
-Include sensory details (soft textures, gentle sounds, warm feelings)
-
-Build toward a peaceful, satisfying conclusion
-
-Incorporate elements that make children feel safe and loved
-
-Consider including bedtime rituals or cozy environments
-
-End with the character feeling content and ready for sleep
-
-CRITICAL: If content violates any guideline above, return empty JSON object: {}
-
-INTRODUCTION NOTE:
-The introduction should not be a part of the story and it should be a summary instead.
+SAFETY GUIDELINES:
+- Ensure the story is universally inoffensive and non-controversial
+- Avoid religious, social, or political topics or any potentially sensitive themes
+- Allow for some level of age-appropriate danger or conflict without being overprotective
+- Make it suitable for bedtime
 
 RESPONSE FORMAT:
-
-Return ONLY valid minified JSON with NO extra text, comments, or explanations:
-
-{
-
-"storyTitle": "Creative, engaging title (3-6 words)",
-
-"storyDescription": "Complete story summary for parents (20-30 words)",
-
-"introduction": {
-
-"title": "Story overview title (2-4 words)",
-"description": "Brief story synopsis (15-20 words)",
-"text": "Complete story summary covering all chapters and ending (150-200 words)"
-
-},
-
-"chapters": [
+Return ONLY valid JSON with NO extra text, comments, or explanations:
 
 {
-  "title": "Chapter title (2-4 words)",
-  "description": "Chapter summary (10-15 words)",
-  "text": "Full chapter content building toward peaceful resolution (200-250 words)"
-}${numChapters > 1 ? ", ..." : ""}
-
-]
-
+  "story_title": "Creative, engaging title (3-6 words)",
+  "story_description": "Complete story summary for parents (20-30 words)",
+  "introduction": {
+    "title": "Story overview title (2-4 words)",
+    "description": "Brief story synopsis (15-20 words)",
+    "text": "Complete story summary covering all chapters and ending (150-200 words)"
+  },
+  "chapters": [
+    {
+      "title": "Chapter title (2-4 words)",
+      "description": "Chapter summary (10-15 words)",
+      "text": "Full chapter content with rich dialogue and details (300-400 words)"
+    }
+  ],
+  "story_cover_image_prompt": "Focused visual description for AI image generation (1-2 sentences describing main character and scene with specific details)"
 }
 
-Generate exactly ${numChapters} chapter${
-        numChapters > 1 ? "s" : ""
-      }. Return ONLY the JSON object.`;
+Generate exactly ${numChapters} chapter${numChapters > 1 ? "s" : ""}. Each chapter must be 300-400 words with engaging dialogue and vivid descriptions.`;
 
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
@@ -324,6 +309,9 @@ Generate exactly ${numChapters} chapter${
           introDescription = storyObj.introduction.description || "";
           introText = storyObj.introduction.text || "";
         }
+        // Store the story object for later use
+        parsedStoryObj = storyObj;
+        
         if (Array.isArray(storyObj.chapters)) {
           for (let i = 0; i < numChapters; i++) {
             const ch = storyObj.chapters[i] || {};
@@ -352,16 +340,41 @@ Generate exactly ${numChapters} chapter${
         .json({ error: "Failed to generate story", details: err });
     }
 
-    // 3. Generate image with DALL-E (OpenAI)
-    console.log("🎨 Starting image generation with gpt-image-1...");
+    // 3. Generate image with DALL-E using enhanced prompts from Python code
+    console.log("🎨 Starting image generation with enhanced prompts...");
     let imageUrl = "";
     try {
-      // Use the first chapter's theme, or join all themes for a richer prompt
-      const storyTheme =
-        chapterThemes.length > 0 ? chapterThemes[0] : "magical adventure";
-      const imagePrompt = `A highly detailed 3D illustration in a whimsical, magical cartoon style. Theme: ${storyTheme}. The scene features ${character} in a vibrant, storybook-like environment filled with variety and depth. The background includes a single distant fairytale tower peeking through soft clouds for a hint of fantasy, but focus on rolling green hills, a shimmering river, a whimsical wooden bridge, giant mushrooms with glowing caps, colorful wildflowers, and a few floating lanterns drifting in the air. Add unique trees with curly branches, sparkling fireflies, and a glowing path of stepping stones leading into the scene. Use cinematic lighting with warm tones, glowing highlights, soft shadows, and painterly textures. The mood is dreamlike and full of childlike wonder, with subtle magic particles in the air. Maintain stylized 3D proportions, soft sculpting, and a fairytale-like composition throughout, ensuring the background feels rich and diverse without repetitive elements.`;
+      // Use the cover image prompt from the story if available
+      const coverPrompt = parsedStoryObj?.story_cover_image_prompt || "";
+      
+      // Enhanced image prompt adapted from Python code
+      const baseImagePrompt = "Generate image for a children's story. ";
+      const stylePrompt = "Style: A highly detailed 3D illustration in a pixar like dreamy, whimsical, magical style. " +
+        "Use cinematic lighting with warm tones, glowing highlights, soft shadows, and painterly textures. " +
+        "Maintain stylized 3D proportions, soft sculpting, and a fairytale like composition throughout, " +
+        "ensuring the background feels rich and diverse without repetitive elements. " +
+        "with charming expressions; cozy, soft colors; child-safe; original characters only; " +
+        "no text or lettering in the image; inviting, centered composition. " +
+        "While creating any character, esp. human characters, avoid any look or costume that is specific " +
+        "to a particular ethnicity or race unless the scene description explicitly mentions it.";
+      
+      let finalImagePrompt = baseImagePrompt + stylePrompt;
+      
+      if (coverPrompt) {
+        finalImagePrompt += ` Scene description: ${coverPrompt}`;
+      } else {
+        // Fallback if no cover prompt is available
+        const currentTheme = chapterThemes.length > 0 ? chapterThemes[0] : "magical adventure";
+        const fallbackScene = `Theme: ${currentTheme}. The scene features ${character} in a vibrant, ` +
+          `storybook-like environment filled with variety and depth. The background includes rolling green hills, ` +
+          `a shimmering river, a whimsical wooden bridge, giant mushrooms with glowing caps, colorful wildflowers, ` +
+          `and floating lanterns drifting in the air. Add unique trees with curly branches, sparkling fireflies, ` +
+          `and a glowing path of stepping stones leading into the scene.`;
+        finalImagePrompt += ` ${fallbackScene}`;
+      }
+
       const imageRes = await openai.images.generate({
-        prompt: imagePrompt,
+        prompt: finalImagePrompt,
         n: 1,
         model: "dall-e-3",
         size: "1024x1024",
@@ -526,9 +539,7 @@ Generate exactly ${numChapters} chapter${
     res.status(201).json({
       success: true,
       storyId: result.insertedId,
-      chapters: chapters.map((c, i) =>
-        i < 2 ? c : { title: c.title, generated: false }
-      ),
+      chapters: chapters, // Return all generated chapters
       image: imageUrl,
     });
   } catch (err) {
