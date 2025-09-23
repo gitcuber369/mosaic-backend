@@ -204,26 +204,36 @@ export async function createStory(req: Request, res: Response) {
     const chapterTexts: string[] = [];
     const chapterThemes: string[] = [];
     let parsedStoryObj: any = null;
-    
+
     // Style-specific instructions adapted from Python code
     const styleInstructions: Record<string, string> = {
-      "adventure": "Write this story in an ADVENTURE style - focus on exciting quests, exploration, and thrilling discoveries. Include elements like journeys, challenges to overcome, and brave actions.",
-      "fantasy": "Write this story in a FANTASY style - include magical worlds, fantastical creatures, and wonderous elements. Use imaginative settings and magical abilities or objects.",
-      "funny": "Write this story in a FUNNY style - make it lighthearted, silly, and full of laughs. Include humorous situations, funny characters, and playful dialogue.",
-      "educational": "Write this story in an EDUCATIONAL style - teach facts or skills in a fun way. Include learning opportunities, interesting information, and problem-solving elements.",
-      "friendship": "Write this story in a FRIENDSHIP style - focus on building bonds, kindness, and cooperation. Emphasize relationships, helping others, and working together.",
-      "fairy_tale": "Write this story in a FAIRY TALE style - use classic whimsical tone, include elements like royalty, wonder, and traditional fairy tale structure with a moral lesson.",
-      "bedtime_calm": "Write this story in a BEDTIME CALM style - make it gentle, soothing, and slow-paced. Use peaceful imagery, calming language, and a relaxing atmosphere.",
-      "inspiring": "Write this story in an INSPIRING style - make it uplifting and encouraging. Focus on positive messages, overcoming challenges, and personal growth."
+      adventure:
+        "Write this story in an ADVENTURE style - focus on exciting quests, exploration, and thrilling discoveries. Include elements like journeys, challenges to overcome, and brave actions.",
+      fantasy:
+        "Write this story in a FANTASY style - include magical worlds, fantastical creatures, and wonderous elements. Use imaginative settings and magical abilities or objects.",
+      funny:
+        "Write this story in a FUNNY style - make it lighthearted, silly, and full of laughs. Include humorous situations, funny characters, and playful dialogue.",
+      educational:
+        "Write this story in an EDUCATIONAL style - teach facts or skills in a fun way. Include learning opportunities, interesting information, and problem-solving elements.",
+      friendship:
+        "Write this story in a FRIENDSHIP style - focus on building bonds, kindness, and cooperation. Emphasize relationships, helping others, and working together.",
+      fairy_tale:
+        "Write this story in a FAIRY TALE style - use classic whimsical tone, include elements like royalty, wonder, and traditional fairy tale structure with a moral lesson.",
+      bedtime_calm:
+        "Write this story in a BEDTIME CALM style - make it gentle, soothing, and slow-paced. Use peaceful imagery, calming language, and a relaxing atmosphere.",
+      inspiring:
+        "Write this story in an INSPIRING style - make it uplifting and encouraging. Focus on positive messages, overcoming challenges, and personal growth.",
     };
-    
+
     const styleInstruction = styleInstructions[style] || "";
-    
+
     try {
       let prompt = `
 You are a master children's author tasked with crafting a world-class bedtime story.
 
-Write a children's bedtime story about: "${character}" who enjoys ${hobbies.join(", ")}. 
+Write a children's bedtime story about: "${character}" who enjoys ${hobbies.join(
+        ", "
+      )}. 
 Age group: ${ageGroup}
 Gender: ${gender}
 ${styleInstruction}
@@ -265,7 +275,9 @@ Return ONLY valid JSON with NO extra text, comments, or explanations:
   "story_cover_image_prompt": "Focused visual description for AI image generation (1-2 sentences describing main character and scene with specific details)"
 }
 
-Generate exactly ${numChapters} chapter${numChapters > 1 ? "s" : ""}. Each chapter must be 300-400 words with engaging dialogue and vivid descriptions.`;
+Generate exactly ${numChapters} chapter${
+        numChapters > 1 ? "s" : ""
+      }. Each chapter must be 300-400 words with engaging dialogue and vivid descriptions.`;
 
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
@@ -311,7 +323,7 @@ Generate exactly ${numChapters} chapter${numChapters > 1 ? "s" : ""}. Each chapt
         }
         // Store the story object for later use
         parsedStoryObj = storyObj;
-        
+
         if (Array.isArray(storyObj.chapters)) {
           for (let i = 0; i < numChapters; i++) {
             const ch = storyObj.chapters[i] || {};
@@ -346,10 +358,11 @@ Generate exactly ${numChapters} chapter${numChapters > 1 ? "s" : ""}. Each chapt
     try {
       // Use the cover image prompt from the story if available
       const coverPrompt = parsedStoryObj?.story_cover_image_prompt || "";
-      
+
       // Enhanced image prompt adapted from Python code
       const baseImagePrompt = "Generate image for a children's story. ";
-      const stylePrompt = "Style: A highly detailed 3D illustration in a pixar like dreamy, whimsical, magical style. " +
+      const stylePrompt =
+        "Style: A highly detailed 3D illustration in a pixar like dreamy, whimsical, magical style. " +
         "Use cinematic lighting with warm tones, glowing highlights, soft shadows, and painterly textures. " +
         "Maintain stylized 3D proportions, soft sculpting, and a fairytale like composition throughout, " +
         "ensuring the background feels rich and diverse without repetitive elements. " +
@@ -357,15 +370,17 @@ Generate exactly ${numChapters} chapter${numChapters > 1 ? "s" : ""}. Each chapt
         "no text or lettering in the image; inviting, centered composition. " +
         "While creating any character, esp. human characters, avoid any look or costume that is specific " +
         "to a particular ethnicity or race unless the scene description explicitly mentions it.";
-      
+
       let finalImagePrompt = baseImagePrompt + stylePrompt;
-      
+
       if (coverPrompt) {
         finalImagePrompt += ` Scene description: ${coverPrompt}`;
       } else {
         // Fallback if no cover prompt is available
-        const currentTheme = chapterThemes.length > 0 ? chapterThemes[0] : "magical adventure";
-        const fallbackScene = `Theme: ${currentTheme}. The scene features ${character} in a vibrant, ` +
+        const currentTheme =
+          chapterThemes.length > 0 ? chapterThemes[0] : "magical adventure";
+        const fallbackScene =
+          `Theme: ${currentTheme}. The scene features ${character} in a vibrant, ` +
           `storybook-like environment filled with variety and depth. The background includes rolling green hills, ` +
           `a shimmering river, a whimsical wooden bridge, giant mushrooms with glowing caps, colorful wildflowers, ` +
           `and floating lanterns drifting in the air. Add unique trees with curly branches, sparkling fireflies, ` +
@@ -883,3 +898,5 @@ export async function rateStory(req: Request, res: Response) {
     res.status(500).json({ error: "Failed to rate story", details: err });
   }
 }
+
+// studentController.ts
