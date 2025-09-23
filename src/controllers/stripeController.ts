@@ -5,6 +5,7 @@ import {
   STRIPE_PRODUCTS,
   STRIPE_WEBHOOK_SECRET,
 } from "../stripeConfig";
+import FirebaseAnalytics from "../firebaseConfig";
 
 // One-time purchase of 10 credits
 export async function buyCreditsIntent(req: Request, res: Response) {
@@ -45,12 +46,29 @@ export async function buyCreditsIntent(req: Request, res: Response) {
         credits: product.credits.toString(),
       },
     });
+
+    // Track credit purchase attempt
+    await FirebaseAnalytics.trackEvent('credit_purchase_initiated', {
+      user_email: email,
+      product: 'credits10',
+      amount_usd: product.price / 100,
+      credits: product.credits,
+      payment_intent_id: paymentIntent.id
+    });
+
     res.json({
       clientSecret: paymentIntent.client_secret,
       paymentIntentId: paymentIntent.id,
     });
   } catch (error) {
     console.error("Error creating buy credits intent:", error);
+    
+    // Track error
+    await FirebaseAnalytics.trackError(error as Error, {
+      function: 'buyCreditsIntent',
+      user_email: req.body?.email
+    });
+    
     res.status(500).json({ error: "Failed to create buy credits intent" });
   }
 }
@@ -364,6 +382,14 @@ export async function handleStripeWebhook(req: Request, res: Response) {
               console.log("[Stripe Webhook] User after update:", userAfter);
               if (result.modifiedCount === 1) {
                 console.log(`Granted subscription and credits to ${newEmail}`);
+                
+                // Track subscription creation
+                await FirebaseAnalytics.trackSubscription(
+                  userBefore?._id?.toString() || 'unknown',
+                  newSubscription.items?.data[0]?.price?.nickname || 'unknown',
+                  'created'
+                );
+                
               } else {
                 throw new Error("User not found or subscription not updated");
               }

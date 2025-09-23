@@ -90,6 +90,7 @@ import type { Request, Response } from "express";
 import { ObjectId } from "mongodb";
 import OpenAI from "openai";
 import { getStoriesCollection, getUsersCollection } from "../db";
+import FirebaseAnalytics from "../firebaseConfig";
 cloudinary.config({
   cloud_name: process.env.CLOUD_NAME as string,
   api_key: process.env.CLOUDINARY_API_KEY as string,

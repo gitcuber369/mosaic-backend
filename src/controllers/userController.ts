@@ -6,6 +6,7 @@ import type { User } from '../models/user';
 import { ObjectId } from 'mongodb';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
+import FirebaseAnalytics from '../firebaseConfig';
 
 const JWT_SECRET = process.env.JWT_SECRET as string;
 
@@ -59,6 +60,10 @@ export async function createUser(req: Request, res: Response) {
     const result = await users.insertOne(user);
     console.log('User saved to DB:', { ...user, _id: result.insertedId });
 
+    // Track user registration
+    const registrationMethod = appleUserId ? 'apple' : 'email';
+    await FirebaseAnalytics.trackUserRegistration(result.insertedId.toString(), registrationMethod);
+
     // Generate JWT token for the new user
     const token = jwt.sign(
       { userId: result.insertedId.toString(), email: user.email, appleUserId: user.appleUserId },
@@ -72,6 +77,11 @@ export async function createUser(req: Request, res: Response) {
       token
     });
   } catch (err) {
+    // Track error
+    await FirebaseAnalytics.trackError(err as Error, { 
+      function: 'createUser',
+      userId: req.body?.appleUserId || req.body?.email 
+    });
     res.status(500).json({ error: 'Failed to create user', details: err });
   }
 }
