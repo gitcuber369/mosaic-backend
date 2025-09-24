@@ -90,7 +90,6 @@ import type { Request, Response } from "express";
 import { ObjectId } from "mongodb";
 import OpenAI from "openai";
 import { getStoriesCollection, getUsersCollection } from "../db";
-import FirebaseAnalytics from "../firebaseConfig";
 cloudinary.config({
   cloud_name: process.env.CLOUD_NAME as string,
   api_key: process.env.CLOUDINARY_API_KEY as string,
@@ -319,13 +318,15 @@ Generate exactly ${numChapters} chapter${
         }
         // Handle new Python-style response format
         storyTitle = storyObj.story_title || "";
-        storyDescription = storyObj.long_story_teaser || storyObj.short_story_teaser || "";
-        
+        storyDescription =
+          storyObj.long_story_teaser || storyObj.short_story_teaser || "";
+
         // Create introduction from the story data
         introTitle = "Introduction";
-        introDescription = storyObj.short_story_teaser || "Meet our main character";
+        introDescription =
+          storyObj.short_story_teaser || "Meet our main character";
         introText = storyObj.long_story_teaser || "";
-        
+
         // Store the story object for later use
         parsedStoryObj = storyObj;
 
@@ -333,9 +334,7 @@ Generate exactly ${numChapters} chapter${
           for (let i = 0; i < numChapters; i++) {
             const ch = storyObj.chapters[i] || {};
             chapterTitles.push(ch.title || `Chapter ${i + 1}`);
-            chapterDescriptions.push(
-              ch.description || "Chapter description"
-            );
+            chapterDescriptions.push(ch.description || "Chapter description");
             chapterThemes.push(ch.theme || "Adventure");
             chapterTexts.push(ch.text || "Chapter unavailable.");
           }
@@ -904,4 +903,4 @@ export async function rateStory(req: Request, res: Response) {
   }
 }
 
-// studentController.ts
+// studentController.ts prompt update pr
