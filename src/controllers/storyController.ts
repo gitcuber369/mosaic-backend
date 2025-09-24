@@ -181,7 +181,7 @@ export async function createStory(req: Request, res: Response) {
     }
 
     console.log(
-      "  User has sufficient generation credits, proceeding with story generation"
+      "User has sufficient generation credits, proceeding with story generation"
     );
 
     // Map age group to number of chapters
