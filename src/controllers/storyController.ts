@@ -90,7 +90,6 @@ import type { Request, Response } from "express";
 import { ObjectId } from "mongodb";
 import OpenAI from "openai";
 import { getStoriesCollection, getUsersCollection } from "../db";
-import FirebaseAnalytics from "../firebaseConfig";
 cloudinary.config({
   cloud_name: process.env.CLOUD_NAME as string,
   api_key: process.env.CLOUDINARY_API_KEY as string,
@@ -281,7 +280,7 @@ Generate exactly ${numChapters} chapter${
       }. Each chapter must be 300-400 words with engaging dialogue and vivid descriptions.`;
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-4o",
         messages: [
           {
             role: "system",
@@ -290,7 +289,11 @@ Generate exactly ${numChapters} chapter${
           { role: "user", content: prompt },
         ],
         max_tokens: 8000,
-        temperature: 0.8,
+        temperature: 0.9,
+        response_format: { type: "json_object" },
+        frequency_penalty: 0.3,
+        presence_penalty: 0.2,
+        top_p: 0.95,
       });
       if (
         completion.choices &&
