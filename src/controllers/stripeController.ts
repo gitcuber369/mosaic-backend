@@ -784,3 +784,6 @@ export async function getSubscriptionStatus(req: Request, res: Response) {
     res.status(500).json({ error: "Failed to get subscription status" });
   }
 }
+
+
+// updated preice id route
