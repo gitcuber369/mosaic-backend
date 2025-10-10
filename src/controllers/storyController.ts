@@ -474,7 +474,7 @@ export async function createStory(req: Request, res: Response) {
         imageUrl = await new Promise((resolve, reject) => {
           const stream = cloudinary.uploader.upload(
             `data:image/png;base64,${imageBuffer.toString("base64")}`,
-            { resource_type: "image", format: "png", folder: "stories_images" },
+            { resource_type: "image", format: "jpg", folder: "stories_images" },
             (error, result) => {
               if (error) return reject(error);
               if (!result)
