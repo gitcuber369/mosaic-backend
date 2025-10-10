@@ -961,4 +961,4 @@ export async function rateStory(req: Request, res: Response) {
   }
 }
 
-// studentController.ts
+// studentController
