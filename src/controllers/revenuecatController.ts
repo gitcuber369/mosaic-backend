@@ -42,6 +42,17 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
   try {
     const rawBody = req.body as Buffer | string;
 
+    // Authorization header enforcement (useful for RevenueCat free tier)
+    // Expect the full header value (e.g. "Bearer <token>") to be stored in REVENUECAT_WEBHOOK_AUTH
+    const expectedAuth = process.env.REVENUECAT_WEBHOOK_AUTH;
+    const actualAuth = (req.headers.authorization || req.headers.Authorization || '') as string;
+    if (expectedAuth) {
+      if (!actualAuth || actualAuth.trim() !== expectedAuth.trim()) {
+        console.warn('RevenueCat webhook: unauthorized - invalid/missing Authorization header');
+        return res.status(401).send('unauthorized');
+      }
+    }
+
     if (!rawBody) {
       console.warn('RevenueCat webhook: missing raw body');
       return res.status(400).send('missing body');
