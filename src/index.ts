@@ -15,6 +15,7 @@ import storiesRouter from './routes/stories';
 import elevenlabsRouter from './routes/elevenlabs';
 import supportRouter from './routes/support';
 import stripeRouter from './routes/stripe';
+import revenuecatRouter from './routes/revenuecat';
 import { connectToDatabase } from './db';
 import { analyticsMiddleware, errorAnalyticsMiddleware } from './middleware/analytics';
 import FirebaseAnalytics from './firebaseConfig';
@@ -74,6 +75,7 @@ app.use('/api/stories', storiesRouter);
 app.use('/api/elevenlabs', elevenlabsRouter);
 app.use('/api/support', supportRouter);
 app.use('/api/stripe', stripeRouter);
+app.use('/api/revenuecat', revenuecatRouter);
 
 // Serve Swagger UI
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs));

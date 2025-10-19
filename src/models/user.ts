@@ -34,6 +34,9 @@ export interface User {
   // Stripe-related fields
   stripeCustomerId?: string;
   stripeSubscriptionId?: string;
+  // RevenueCat-related fields
+  revenuecatSubscriptionId?: string;
+  revenuecatAppUserId?: string;
   premiumExpiresAt?: Date;
   isCancelled: boolean;
   /**
