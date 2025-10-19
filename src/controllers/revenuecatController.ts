@@ -70,7 +70,21 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
       }
     }
 
-    const payload = typeof rawBody === 'string' ? JSON.parse(rawBody) : JSON.parse(rawBody.toString('utf8'));
+    // Parse payload robustly:
+    // - If rawBody is Buffer -> parse its UTF-8 string
+    // - If rawBody is string -> parse directly
+    // - If rawBody is already an object (express.json parsed it), use it as-is
+    let payload: any;
+    if (Buffer.isBuffer(rawBody)) {
+      payload = JSON.parse(rawBody.toString('utf8'));
+    } else if (typeof rawBody === 'string') {
+      payload = JSON.parse(rawBody);
+    } else if (typeof rawBody === 'object') {
+      // Already-parsed JSON (e.g., express.json ran before raw middleware).
+      payload = rawBody;
+    } else {
+      throw new Error('Unsupported webhook body type');
+    }
 
     // Event id: RevenueCat payload shapes vary; check several fields
     const eventId = payload.event_id || payload.id || payload.request_id || payload.delivery_id || payload.data?.id;

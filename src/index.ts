@@ -30,6 +30,10 @@ const PORT = process.env.PORT;
 app.use('/api/stripe/webhook', raw({ type: 'application/json' }));
 // --- End Stripe raw body parser ---
 
+// --- RevenueCat webhook raw body parser ---
+app.use('/api/revenuecat/webhook', raw({ type: 'application/json' }));
+// --- End RevenueCat raw body parser ---
+
 app.use(json());
 
 // Analytics middleware - track all API requests
