@@ -97,8 +97,11 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
       throw new Error('Unsupported webhook body type');
     }
 
-    // Event id: RevenueCat payload shapes vary; check several fields
-    const eventId = payload.event_id || payload.id || payload.request_id || payload.delivery_id || payload.data?.id;
+  // Event id: RevenueCat payload shapes vary; check several fields
+  const eventId = payload.event_id || payload.id || payload.request_id || payload.delivery_id || payload.data?.id;
+
+  // Collect human-readable actions for a concise success log at the end
+  const actions: string[] = [];
 
     const db = getDb();
 
@@ -131,9 +134,11 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
         if (user) {
           await users.updateOne({ _id: user._id }, { $inc: { storyListenCredits: creditsToGrant } });
           console.log(`Granted ${creditsToGrant} credits to appUserId=${appUserId} (product=${productId})`);
+          actions.push(`granted_consumable:${creditsToGrant}:${productId}`);
           await FirebaseAnalytics.trackEvent('revenuecat_consumable_granted', { appUserId, productId, credits: creditsToGrant });
         } else {
           console.warn('RevenueCat webhook: user not found for appUserId', appUserId);
+          actions.push('user_not_found_consumable');
         }
       }
     }
@@ -209,6 +214,7 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
               await users.updateOne({ _id: user._id }, { $set: update });
 
               console.log(`Granted subscription and credits (initial) to appUserId=${rcAppUserId} (product=${incomingProductId})`);
+              actions.push('subscription_initial_grant:30');
 
               try {
                 await FirebaseAnalytics.trackSubscription(
@@ -235,6 +241,7 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
                 );
                 if (result.modifiedCount === 1) {
                   console.log(`Renewed subscription and granted credits to appUserId=${rcAppUserId}`);
+                  actions.push('subscription_renewal_grant:30');
                 }
                 try {
                   await FirebaseAnalytics.trackSubscription(
@@ -253,6 +260,7 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
             // If no premiumExpiresAt but entitlement shows is_active false, update user accordingly
             if (!premiumExpiresAt && !isPremiumNow) {
               await users.updateOne({ _id: user._id }, { $set: { isPremium: false } });
+              actions.push('marked_not_premium');
             }
           }
 
@@ -268,6 +276,7 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
                 }
               );
               console.log(`Subscription cancelled for appUserId=${rcAppUserId}`);
+              actions.push('marked_cancelled');
             } catch (err) {
               console.error('Failed to mark subscription cancelled', err);
             }
@@ -278,10 +287,12 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
             const u: any = user;
             if (!u.revenuecatSubscriptionId || u.revenuecatSubscriptionId !== incomingSubId) {
               await users.updateOne({ _id: user._id }, { $set: { revenuecatSubscriptionId: incomingSubId } });
+              actions.push('stored_revenuecatSubscriptionId');
             }
           }
 
           console.log(`Updated subscription state for appUserId=${rcAppUserId}: isPremium=${isPremiumNow}`);
+          actions.push(`updated_subscription:isPremium=${isPremiumNow}`);
         }
       }
     }
@@ -290,10 +301,14 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
     if (eventId) {
       try {
         await markEventProcessed(db, eventId);
+        actions.push('marked_event_processed');
       } catch (err) {
         // ignore
       }
     }
+
+    // Final success log summarizing the actions taken for this event (avoids revealing secrets)
+    console.log(`RevenueCat webhook processed: eventId=${eventId} appUserId=${payload.app_user_id || payload.data?.app_user_id || payload.data?.subscriber?.app_user_id || payload.data?.subscriber?.original_app_user_id || 'unknown'} actions=${actions.join(';')}`);
 
     return res.status(200).send('ok');
   } catch (err) {
