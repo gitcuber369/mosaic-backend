@@ -138,7 +138,6 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
       rcEvent.original_app_user_id ||
       payload.app_user_id ||
       payload.data?.app_user_id ||
-      payload.data?.subscriber?.app_user_id ||
       payload.data?.subscriber?.app_user_id;
     const productId =
       rcEvent.product_id ||
