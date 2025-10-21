@@ -112,10 +112,12 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
       throw new Error("Unsupported webhook body type");
     }
 
+    const rcEvent = payload.event || payload.data?.event || payload;
+
     // Event id: RevenueCat payload shapes vary; check several fields
     const eventId =
-      payload.event_id ||
-      payload.id ||
+      rcEvent.id ||
+      rcEvent.event_id ||
       payload.request_id ||
       payload.delivery_id ||
       payload.data?.id;
@@ -132,20 +134,26 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
 
     // Extract app user id and product id
     const appUserId =
+      rcEvent.app_user_id ||
+      rcEvent.original_app_user_id ||
       payload.app_user_id ||
       payload.data?.app_user_id ||
       payload.data?.subscriber?.app_user_id ||
       payload.data?.subscriber?.app_user_id;
     const productId =
+      rcEvent.product_id ||
       payload.product_id ||
       payload.data?.product_id ||
       payload.data?.product?.product_id ||
       payload.data?.product?.id;
     const eventType =
+      rcEvent.type ||
       payload.event ||
       payload.type ||
       payload.data?.type ||
       payload.data?.event_type;
+
+    console.log("Parsed RevenueCat event:", rcEvent);
 
     const users = getUsersCollection();
 
@@ -322,7 +330,10 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
                   console.warn("Failed to track subscription analytics", err);
                 }
               } catch (err) {
-                console.error("Failed to apply initial subscription updates", err);
+                console.error(
+                  "Failed to apply initial subscription updates",
+                  err
+                );
               }
             } else {
               // renewal: increment credits by 30
