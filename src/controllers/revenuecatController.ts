@@ -45,15 +45,15 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
     // Authorization header enforcement (useful for RevenueCat free tier)
     // Expect the full header value (e.g. "Bearer <token>") to be stored in REVENUECAT_WEBHOOK_AUTH
     const expectedAuth = process.env.REVENUECAT_WEBHOOK_AUTH;
-    const actualAuth = (req.headers.authorization || req.headers.Authorization || "") as string;
-    // track whether authorization header verification passed
-    let verifiedAuth = false;
+    const actualAuth = (req.headers.authorization ||
+      req.headers.Authorization ||
+      "") as string;
     if (expectedAuth) {
       if (!actualAuth || actualAuth.trim() !== expectedAuth.trim()) {
-        console.warn("RevenueCat webhook: unauthorized - invalid/missing Authorization header");
+        console.warn(
+          "RevenueCat webhook: unauthorized - invalid/missing Authorization header"
+        );
         return res.status(401).send("unauthorized");
-      } else {
-        verifiedAuth = true;
       }
     }
 
@@ -69,7 +69,6 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
       (req.headers["webhook-signature"] as string);
 
     // Verify signature if secret present
-    let verifiedSignature = false;
     if (process.env.REVENUECAT_WEBHOOK_SECRET) {
       if (!signatureHeader) {
         console.warn("RevenueCat webhook: no signature header provided");
@@ -88,10 +87,13 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
         sigBuf.length !== expBuf.length ||
         !crypto.timingSafeEqual(sigBuf, expBuf)
       ) {
-        console.warn("RevenueCat webhook: invalid signature", signatureHeader, expected);
+        console.warn(
+          "RevenueCat webhook: invalid signature",
+          signatureHeader,
+          expected
+        );
         return res.status(401).send("invalid signature");
       }
-      verifiedSignature = true;
     }
 
     // Parse payload robustly:
@@ -291,28 +293,36 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
           ) {
             // New subscription or renewal with newer expiry -> grant/set premium and credits
             if (!storedExpiry) {
-              // initial purchase: set credits to 30 (overwrite)
-              const update: any = {
-                isPremium: true,
-                premiumExpiresAt,
-                revenuecatSubscriptionId: incomingSubId || undefined,
-                storyListenCredits: 30,
-              };
-              await users.updateOne({ _id: user._id }, { $set: update });
-
-              console.log(
-                `Granted subscription and credits (initial) to appUserId=${rcAppUserId} (product=${incomingProductId})`
-              );
-              actions.push("subscription_initial_grant:30");
-
+              // initial purchase: increment credits by 30 (don't overwrite existing credits)
               try {
-                await FirebaseAnalytics.trackSubscription(
-                  userBefore?._id?.toString() || "unknown",
-                  incomingProductId || "unknown",
-                  "created"
+                const result = await users.updateOne(
+                  { _id: user._id },
+                  {
+                    $set: {
+                      isPremium: true,
+                      premiumExpiresAt,
+                      revenuecatSubscriptionId: incomingSubId || undefined,
+                    },
+                    $inc: { storyListenCredits: 30 },
+                  }
                 );
+
+                console.log(
+                  `Granted subscription and credits (initial) to appUserId=${rcAppUserId} (product=${incomingProductId})`
+                );
+                actions.push("subscription_initial_grant:30");
+
+                try {
+                  await FirebaseAnalytics.trackSubscription(
+                    userBefore?._id?.toString() || "unknown",
+                    incomingProductId || "unknown",
+                    "created"
+                  );
+                } catch (err) {
+                  console.warn("Failed to track subscription analytics", err);
+                }
               } catch (err) {
-                console.warn("Failed to track subscription analytics", err);
+                console.error("Failed to apply initial subscription updates", err);
               }
             } else {
               // renewal: increment credits by 30
@@ -415,11 +425,6 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
     }
 
     // Final success log summarizing the actions taken for this event (avoids revealing secrets)
-    const verified = Boolean(verifiedSignature || verifiedAuth);
-    const verificationMethods: string[] = [];
-    if (verifiedSignature) verificationMethods.push("hmac");
-    if (verifiedAuth) verificationMethods.push("auth_header");
-
     console.log(
       `RevenueCat webhook processed: eventId=${eventId} appUserId=${
         payload.app_user_id ||
@@ -427,10 +432,8 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
         payload.data?.subscriber?.app_user_id ||
         payload.data?.subscriber?.original_app_user_id ||
         "unknown"
-      } verified=${verified} methods=${verificationMethods.join(",")} actions=${actions.join(";")}`
+      } actions=${actions.join(";")}`
     );
-
-    console.info("RevenueCat webhook response: status=200 body=ok eventId=", eventId);
 
     return res.status(200).send("ok");
   } catch (err) {
