@@ -1,7 +1,17 @@
-import { Router } from 'express';
-import { createUser, getUserByEmail, loginUser, deleteUserAccount } from '../controllers/userController';
-import { upgradeUserToPremium, buyStoryCredits, monthlyResetCredits, deductListenCreditForChapter, getUserListeningHistory } from '../controllers/userController';
-import { authenticateToken } from '../middleware/auth';
+import { Router } from "express";
+import {
+  buyStoryCredits,
+  createUser,
+  deductListenCreditForChapter,
+  deleteUserAccount,
+  getUserByEmail,
+  getUserListeningHistory,
+  loginUser,
+  monthlyResetCredits,
+  upgradeUserToPremium,
+  saveRevenuecatAppUserId,
+} from "../controllers/userController";
+import { authenticateToken } from "../middleware/auth";
 
 const router = Router();
 
@@ -42,7 +52,7 @@ const router = Router();
  *         description: Failed to create user
  */
 // POST /api/users (signup, public)
-router.post('/', createUser);
+router.post("/", createUser);
 
 /**
  * @swagger
@@ -69,7 +79,7 @@ router.post('/', createUser);
  *         description: Failed to fetch user
  */
 // GET /api/users/by-email?email=... (protected)
-router.get('/by-email', getUserByEmail);
+router.get("/by-email", getUserByEmail);
 
 /**
  * @swagger
@@ -98,7 +108,7 @@ router.get('/by-email', getUserByEmail);
  *         description: Failed to login user
  */
 // POST /api/users/login (public)
-router.post('/login', loginUser);
+router.post("/login", loginUser);
 
 /**
  * @swagger
@@ -127,7 +137,7 @@ router.post('/login', loginUser);
  *         description: Failed to upgrade user
  */
 // POST /api/users/upgrade (protected)
-router.post('/upgrade', authenticateToken, upgradeUserToPremium);
+router.post("/upgrade", authenticateToken, upgradeUserToPremium);
 
 /**
  * @swagger
@@ -158,7 +168,7 @@ router.post('/upgrade', authenticateToken, upgradeUserToPremium);
  *         description: Failed to buy credits
  */
 // POST /api/users/buy-credits (protected)
-router.post('/buy-credits', authenticateToken, buyStoryCredits);
+router.post("/buy-credits", authenticateToken, buyStoryCredits);
 
 /**
  * @swagger
@@ -174,7 +184,7 @@ router.post('/buy-credits', authenticateToken, buyStoryCredits);
  *         description: Failed to reset credits
  */
 // POST /api/users/monthly-reset (protected)
-router.post('/monthly-reset', authenticateToken, monthlyResetCredits);
+router.post("/monthly-reset", authenticateToken, monthlyResetCredits);
 
 /**
  * @swagger
@@ -203,7 +213,10 @@ router.post('/monthly-reset', authenticateToken, monthlyResetCredits);
  *         description: Failed to delete user
  */
 // POST /api/users/delete-account (protected)
-router.post('/delete-account', authenticateToken, deleteUserAccount);
+router.post("/delete-account", authenticateToken, deleteUserAccount);
+
+// Public endpoint: save RevenueCat appUserId and optional name/attributes for webhook mapping
+router.post("/revenuecat-app-user-id", saveRevenuecatAppUserId);
 
 /**
  * @swagger
@@ -240,7 +253,11 @@ router.post('/delete-account', authenticateToken, deleteUserAccount);
  *         description: Failed to deduct credit
  */
 // POST /api/users/deduct-listen-credit-chapter (protected)
-router.post('/deduct-listen-credit-chapter', authenticateToken, deductListenCreditForChapter);
+router.post(
+  "/deduct-listen-credit-chapter",
+  authenticateToken,
+  deductListenCreditForChapter
+);
 
 /**
  * @swagger
@@ -273,6 +290,6 @@ router.post('/deduct-listen-credit-chapter', authenticateToken, deductListenCred
  *         description: Failed to get listening history
  */
 // GET /api/users/listening-history (protected)
-router.get('/listening-history', authenticateToken, getUserListeningHistory);
+router.get("/listening-history", authenticateToken, getUserListeningHistory);
 
 export default router;

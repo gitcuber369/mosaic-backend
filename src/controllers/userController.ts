@@ -438,3 +438,48 @@ export async function setUserCancelled(req: Request, res: Response) {
     res.status(500).json({ error: 'Failed to update isCancelled', details: err });
   }
 }
+
+// Save RevenueCat appUserId and optional displayName/attributes for webhook mapping
+export async function saveRevenuecatAppUserId(req: Request, res: Response) {
+  try {
+    const { email, appUserId, name, displayName, attributes, appleUserId } = req.body;
+
+    if (!appUserId) {
+      return res.status(400).json({ error: 'appUserId is required' });
+    }
+
+    const users = getUsersCollection();
+
+    // Build query: prefer email, fallback to appleUserId
+    let query: any = {};
+    if (email) query.email = email;
+    else if (appleUserId) query.appleUserId = appleUserId;
+    else return res.status(400).json({ error: 'email or appleUserId required to identify user' });
+
+    const update: any = { $set: { revenuecatAppUserId: appUserId } };
+    const resolvedName = name || displayName;
+    if (resolvedName) update.$set.name = resolvedName;
+    if (attributes && typeof attributes === 'object') {
+      update.$set.revenuecatAttributes = attributes;
+    }
+
+    const result: any = await users.findOneAndUpdate(query, update, { returnDocument: 'after' });
+    if (!result.value) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    try {
+      await FirebaseAnalytics.trackEvent('revenuecat_app_user_id_saved', {
+        userId: result.value._id?.toString(),
+        appUserId,
+      });
+    } catch (e) {
+      // ignore analytics failures
+    }
+
+    res.status(200).json({ success: true, user: result.value });
+  } catch (err) {
+    console.error('Error in saveRevenuecatAppUserId:', err);
+    res.status(500).json({ error: 'Failed to save revenuecat appUserId', details: err });
+  }
+}
