@@ -42,46 +42,18 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
   try {
     const rawBody = req.body as Buffer | string;
 
-    // Lightweight structured logging for webhook debugging/auditing.
-    // Controlled by REVENUECAT_LOG_RAW (log raw body) and REVENUECAT_LOG_HEADERS (log headers).
-    const shouldLogRaw = (process.env.REVENUECAT_LOG_RAW || "").toLowerCase() === "1";
-    const shouldLogHeaders = (process.env.REVENUECAT_LOG_HEADERS || "").toLowerCase() === "1";
-
-    // Copy and mask sensitive headers for logs
-    const rawHeaders: any = {};
-    for (const k of Object.keys(req.headers)) {
-      const kl = k.toLowerCase();
-      if (kl.includes("signature") || kl.includes("authorization") || kl.includes("auth")) {
-        rawHeaders[k] = "[masked]";
-      } else {
-        rawHeaders[k] = req.headers[k];
-      }
-    }
-
-    if (shouldLogHeaders) {
-      console.info("RevenueCat webhook received headers:", rawHeaders);
-    }
-    if (shouldLogRaw) {
-      try {
-        if (Buffer.isBuffer(rawBody)) console.info("RevenueCat webhook raw body:", rawBody.toString("utf8"));
-        else console.info("RevenueCat webhook raw body:", rawBody);
-      } catch (e) {
-        console.warn("RevenueCat webhook: failed to stringify raw body for logging", e);
-      }
-    }
-
     // Authorization header enforcement (useful for RevenueCat free tier)
     // Expect the full header value (e.g. "Bearer <token>") to be stored in REVENUECAT_WEBHOOK_AUTH
     const expectedAuth = process.env.REVENUECAT_WEBHOOK_AUTH;
-    const actualAuth = (req.headers.authorization ||
-      req.headers.Authorization ||
-      "") as string;
+    const actualAuth = (req.headers.authorization || req.headers.Authorization || "") as string;
+    // track whether authorization header verification passed
+    let verifiedAuth = false;
     if (expectedAuth) {
       if (!actualAuth || actualAuth.trim() !== expectedAuth.trim()) {
-        console.warn(
-          "RevenueCat webhook: unauthorized - invalid/missing Authorization header"
-        );
+        console.warn("RevenueCat webhook: unauthorized - invalid/missing Authorization header");
         return res.status(401).send("unauthorized");
+      } else {
+        verifiedAuth = true;
       }
     }
 
@@ -116,11 +88,7 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
         sigBuf.length !== expBuf.length ||
         !crypto.timingSafeEqual(sigBuf, expBuf)
       ) {
-        console.warn(
-          "RevenueCat webhook: invalid signature",
-          signatureHeader,
-          expected
-        );
+        console.warn("RevenueCat webhook: invalid signature", signatureHeader, expected);
         return res.status(401).send("invalid signature");
       }
       verifiedSignature = true;
@@ -447,6 +415,11 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
     }
 
     // Final success log summarizing the actions taken for this event (avoids revealing secrets)
+    const verified = Boolean(verifiedSignature || verifiedAuth);
+    const verificationMethods: string[] = [];
+    if (verifiedSignature) verificationMethods.push("hmac");
+    if (verifiedAuth) verificationMethods.push("auth_header");
+
     console.log(
       `RevenueCat webhook processed: eventId=${eventId} appUserId=${
         payload.app_user_id ||
@@ -454,18 +427,14 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
         payload.data?.subscriber?.app_user_id ||
         payload.data?.subscriber?.original_app_user_id ||
         "unknown"
-      } verified=${verifiedSignature} actions=${actions.join(";")}`
+      } verified=${verified} methods=${verificationMethods.join(",")} actions=${actions.join(";")}`
     );
 
-    // Log the HTTP response status for observability
     console.info("RevenueCat webhook response: status=200 body=ok eventId=", eventId);
 
     return res.status(200).send("ok");
   } catch (err) {
     console.error("RevenueCat webhook error", err);
-    // Log the error response status as well, safely extracting message
-    const errMsg = err && typeof err === "object" && "message" in (err as any) ? (err as any).message : String(err);
-    console.info("RevenueCat webhook response: status=500", errMsg);
     return res.status(500).send("server error");
   }
 }
