@@ -3,24 +3,26 @@ import { Request, Response } from "express";
 import { getDb, getUsersCollection } from "../db";
 import FirebaseAnalytics from "../firebaseConfig";
 
-// Map RevenueCat product IDs to consumable credits
+// Map RevenueCat product IDs to consumable credits (one-time purchases)
 const PRODUCT_CREDIT_MAP: Record<string, number> = {
   "com.mosaic.credits_10": 10,
-  // Add more consumable product IDs here if needed
+  // add more consumable product IDs if needed
 };
 
-// Idempotency: Mark an event as processed
+// Idempotency: mark an event as processed
 async function markEventProcessed(db: any, eventId: string) {
   const coll = db.collection("processedEvents");
   try {
     await coll.insertOne({ eventId, createdAt: new Date() });
+    console.log(`Event ${eventId} marked as processed`);
     return true;
   } catch (err) {
-    return false; // duplicate
+    console.warn(`Event ${eventId} already processed`);
+    return false; // duplicate event
   }
 }
 
-// Check if event was already processed
+// Check if an event was already processed
 async function hasEventBeenProcessed(db: any, eventId: string) {
   const coll = db.collection("processedEvents");
   const f = await coll.findOne({ eventId });
@@ -41,18 +43,19 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
   try {
     const rawBody = req.body as Buffer | string;
 
-    // Verify basic auth header
+    // Verify basic auth
     const expectedAuth = process.env.REVENUECAT_WEBHOOK_AUTH;
     const actualAuth = (req.headers.authorization ||
       req.headers.Authorization ||
       "") as string;
     if (expectedAuth && actualAuth.trim() !== expectedAuth.trim()) {
+      console.warn("Unauthorized webhook call");
       return res.status(401).send("unauthorized");
     }
 
     if (!rawBody) return res.status(400).send("missing body");
 
-    // Verify signature if webhook secret is provided
+    // Verify signature if secret is provided
     const signatureHeader =
       (req.headers["x-revenuecat-signature"] as string) ||
       (req.headers["revenuecat-signature"] as string) ||
@@ -71,6 +74,7 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
         sigBuf.length !== expBuf.length ||
         !crypto.timingSafeEqual(sigBuf, expBuf)
       ) {
+        console.warn("Invalid signature");
         return res.status(401).send("invalid signature");
       }
     }
@@ -89,9 +93,12 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
       payload.request_id ||
       payload.delivery_id ||
       payload.data?.id;
+
     const db = getDb();
-    if (eventId && (await hasEventBeenProcessed(db, eventId)))
+    if (eventId && (await hasEventBeenProcessed(db, eventId))) {
+      console.log(`Duplicate event received: ${eventId}`);
       return res.status(200).send("ok");
+    }
 
     const users = getUsersCollection();
 
@@ -109,7 +116,12 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
       payload.data?.product?.product_id ||
       payload.data?.product?.id;
 
-    console.log("Parsed RevenueCat event:", rcEvent);
+    console.log("---- RevenueCat Event ----");
+    console.log("Event type:", rcEvent.type);
+    console.log("App User ID:", appUserId);
+    console.log("Product ID:", productId);
+    console.log("Raw event:", JSON.stringify(rcEvent, null, 2));
+    console.log("--------------------------");
 
     async function findUserByAppUserId(appUserIdToFind: string | undefined) {
       if (!appUserIdToFind) return null;
@@ -122,7 +134,7 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
       return u;
     }
 
-    // Handle consumable credits
+    // Handle consumable credits (one-time purchases)
     if (productId && PRODUCT_CREDIT_MAP[productId]) {
       const user = await findUserByAppUserId(appUserId);
       if (user) {
@@ -130,15 +142,20 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
           { _id: user._id },
           { $inc: { storyListenCredits: PRODUCT_CREDIT_MAP[productId] } }
         );
+        console.log(
+          `Granted ${PRODUCT_CREDIT_MAP[productId]} credits to user ${user._id}`
+        );
         await FirebaseAnalytics.trackEvent("revenuecat_consumable_granted", {
           appUserId,
           productId,
           credits: PRODUCT_CREDIT_MAP[productId],
         });
+      } else {
+        console.warn("User not found for consumable purchase");
       }
     }
 
-    // Handle subscription and entitlement
+    // Handle subscriptions and entitlements
     const subscriber =
       payload.data?.subscriber || payload.subscriber || payload.data;
     if (subscriber) {
@@ -146,8 +163,12 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
         appUserId ||
         subscriber?.app_user_id ||
         subscriber?.original_app_user_id;
+
       let user = await findUserByAppUserId(rcAppUserId);
-      if (!user) return res.status(200).send("ok");
+      if (!user) {
+        console.warn("User not found for subscription event");
+        return res.status(200).send("ok");
+      }
 
       if (!user.revenuecatAppUserId) {
         await users.updateOne(
@@ -193,7 +214,25 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
         isPremiumNow = true;
       }
 
-      // Handle all event types
+      if (!subscriptionId)
+        subscriptionId = rcEvent.transaction_id || rcEvent.id;
+
+      // Determine credits to grant
+      const incrementCredits =
+        subscriptionId && user.revenuecatSubscriptionId !== subscriptionId
+          ? 30
+          : 0;
+
+      const update: any = {
+        isPremium: isPremiumNow,
+        premiumExpiresAt: premiumExpiresAt || user.premiumExpiresAt,
+      };
+      if (subscriptionId) update.revenuecatSubscriptionId = subscriptionId;
+      const updateOps: any = { $set: update };
+      if (incrementCredits > 0)
+        updateOps.$inc = { storyListenCredits: incrementCredits };
+
+      // Handle specific event types with logging
       switch ((rcEvent.type || "").toUpperCase()) {
         case "INITIAL_PURCHASE":
         case "RENEWAL":
@@ -201,114 +240,71 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
         case "SUBSCRIPTION_EXTENDED":
         case "TEMPORARY_ENTITLEMENT_GRANT":
         case "NON_RENEWING_PURCHASE":
-          {
-            const incrementCredits =
-              subscriptionId && user.revenuecatSubscriptionId === subscriptionId
-                ? 0
-                : 30;
-            const update: any = {
-              isPremium: true,
-              premiumExpiresAt: premiumExpiresAt || user.premiumExpiresAt,
-            };
-            if (subscriptionId)
-              update.revenuecatSubscriptionId = subscriptionId;
-            const updateOps: any = { $set: update };
-            if (incrementCredits > 0)
-              updateOps.$inc = { storyListenCredits: incrementCredits };
-            await users.updateOne({ _id: user._id }, updateOps);
-          }
+          console.log(`Subscription active or granted: ${user._id}`);
           break;
 
         case "CANCELLATION":
-          await users.updateOne(
-            { _id: user._id },
-            { $set: { isPremium: false } }
-          );
+          updateOps.$set.isPremium = false;
+          console.log(`Subscription cancelled for user: ${user._id}`);
           break;
 
         case "PRODUCT_CHANGE":
-          {
-            // Optional: handle product upgrades/downgrades
-            if (
-              latestSub &&
-              latestSub.product_id !== user.revenuecatSubscriptionId
-            ) {
-              await users.updateOne(
-                { _id: user._id },
-                { $set: { revenuecatSubscriptionId: latestSub.product_id } }
-              );
-            }
-          }
+          updateOps.$set.revenuecatSubscriptionId =
+            latestSub?.product_id ||
+            rcEvent.new_product_id ||
+            rcEvent.product_id;
+          console.log(
+            `Product change for user ${user._id} to ${updateOps.$set.revenuecatSubscriptionId}`
+          );
           break;
 
         case "BILLING_ISSUE":
-          // Optional: mark billing problem flag
-          await users.updateOne(
-            { _id: user._id },
-            { $set: { billingIssue: true } }
-          );
+          updateOps.$set.billingIssue = true;
+          console.warn(`Billing issue for user ${user._id}`);
           break;
 
         case "TRANSFER":
-          // Optional: handle merging/transferring user entitlements
-          console.log("TRANSFER event: handle if needed");
+          console.log(`TRANSFER event received for user ${user._id}`);
           break;
 
         case "SUBSCRIPTION_PAUSED":
-          await users.updateOne(
-            { _id: user._id },
-            { $set: { isPaused: true } }
-          );
+          updateOps.$set.isPaused = true;
+          console.log(`Subscription paused for user ${user._id}`);
           break;
 
         case "EXPIRATION":
-          await users.updateOne(
-            { _id: user._id },
-            { $set: { isPremium: false } }
-          );
+          updateOps.$set.isPremium = false;
+          console.log(`Subscription expired for user ${user._id}`);
           break;
 
         case "INVOICE_ISSUANCE":
-          // Optional: log or track invoice issued
-          console.log("Invoice issued for user", user._id);
+          console.log(`Invoice issued for user ${user._id}`);
           break;
 
         case "REFUND_REVERSED":
-          // Optional: re-grant credits if needed
-          await users.updateOne(
-            { _id: user._id },
-            { $set: { isPremium: true } }
-          );
+          updateOps.$set.isPremium = true;
+          console.log(`Refund reversed, user ${user._id} re-granted premium`);
           break;
 
         default:
-          // fallback: if subscription active or entitlement active
-          if (isPremiumNow) {
-            const incrementCredits =
-              subscriptionId && user.revenuecatSubscriptionId === subscriptionId
-                ? 0
-                : 30;
-            const update: any = {
-              isPremium: true,
-              premiumExpiresAt: premiumExpiresAt || user.premiumExpiresAt,
-            };
-            if (subscriptionId)
-              update.revenuecatSubscriptionId = subscriptionId;
-            const updateOps: any = { $set: update };
-            if (incrementCredits > 0)
-              updateOps.$inc = { storyListenCredits: incrementCredits };
-            await users.updateOne({ _id: user._id }, updateOps);
-          } else {
-            await users.updateOne(
-              { _id: user._id },
-              { $set: { isPremium: false } }
-            );
-          }
+          console.log(
+            `Unhandled event type: ${rcEvent.type} for user ${user._id}`
+          );
           break;
       }
+
+      await users.updateOne({ _id: user._id }, updateOps);
+      await FirebaseAnalytics.trackEvent("revenuecat_subscription_update", {
+        appUserId,
+        productId,
+        eventType: rcEvent.type,
+        creditsGranted: incrementCredits,
+        isPremium: isPremiumNow,
+      });
     }
 
     if (eventId) await markEventProcessed(db, eventId);
+
     return res.status(200).send("ok");
   } catch (err) {
     console.error("RevenueCat webhook error", err);
