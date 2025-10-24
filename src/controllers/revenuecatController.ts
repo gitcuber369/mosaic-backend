@@ -112,7 +112,7 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
       throw new Error("Unsupported webhook body type");
     }
 
-  const rcEvent = payload.event || payload.data?.event || payload;
+    const rcEvent = payload.event || payload.data?.event || payload;
 
     // Event id: RevenueCat payload shapes vary; check several fields
     const eventId =
@@ -127,20 +127,9 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
 
     const db = getDb();
 
-    // Atomic idempotency: attempt to insert processed event at the start.
-    // If insert fails with duplicate-key, another worker already processed this event -> return 200 OK.
-    if (eventId) {
-      try {
-        const coll = db.collection("processedEvents");
-        await coll.insertOne({ eventId, createdAt: new Date() });
-      } catch (err: any) {
-        const code = err && (err.code || err.codeNumber);
-        if (code === 11000 || (err && /duplicate/i.test(String(err)))) {
-          console.log("RevenueCat webhook: duplicate event, ignoring", eventId);
-          return res.status(200).send("ok");
-        }
-        console.warn("RevenueCat webhook: failed to insert processed event record", err);
-      }
+    if (eventId && (await hasEventBeenProcessed(db, eventId))) {
+      // already handled
+      return res.status(200).send("ok");
     }
 
     // Extract app user id and product id
@@ -184,36 +173,11 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
         u = await users.findOne({ appUserId: original });
         if (u) return u;
       }
-      // Fallback to subscriber email if provided. RevenueCat may include email under
-      // different paths depending on webhook shape, check several locations including
-      // subscriber.email and subscriber_attributes['$email'].value
-      const emailCandidates = [] as string[];
-      if (payload?.data?.subscriber?.email) emailCandidates.push(payload.data.subscriber.email);
-      if (payload?.data?.subscriber?.subscriber_attributes) {
-        const sa = payload.data.subscriber.subscriber_attributes;
-        const key = Object.keys(sa).find((k) => k.toLowerCase().includes('email') || k === '$email');
-        if (key && sa[key]?.value) emailCandidates.push(sa[key].value);
-      }
-      // rcEvent-level subscriber_attributes (event-shaped payloads)
-      if (rcEvent?.subscriber_attributes) {
-        const sa2 = rcEvent.subscriber_attributes;
-        const key2 = Object.keys(sa2).find((k) => k.toLowerCase().includes('email') || k === '$email');
-        if (key2 && sa2[key2]?.value) emailCandidates.push(sa2[key2].value);
-      }
-      // Top-level payload subscriber_attributes
-      if (payload?.subscriber_attributes) {
-        const sa3 = payload.subscriber_attributes;
-        const key3 = Object.keys(sa3).find((k) => k.toLowerCase().includes('email') || k === '$email');
-        if (key3 && sa3[key3]?.value) emailCandidates.push(sa3[key3].value);
-      }
-
-      for (const email of emailCandidates) {
-        try {
-          u = await users.findOne({ email });
-          if (u) return u;
-        } catch (err) {
-          // ignore and continue
-        }
+      // Fallback to subscriber email if provided
+      const email = payload?.data?.subscriber?.email;
+      if (email) {
+        u = await users.findOne({ email });
+        if (u) return u;
       }
       return null;
     }
@@ -255,9 +219,8 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
 
     // Subscription / entitlement handling (robust)
     // payload.data.subscriber often contains entitlements and subscription objects
-    // rcEvent (the top-level event) may also include app_user_id / entitlement_ids for event-shaped payloads.
     const subscriber =
-      payload.data?.subscriber || payload.subscriber || payload.data || rcEvent;
+      payload.data?.subscriber || payload.subscriber || payload.data;
     if (subscriber) {
       const rcAppUserId =
         appUserId ||
@@ -461,22 +424,25 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
       }
     }
 
-    // Note: we attempted to insert processedEvents at the start for atomic idempotency.
-    // Keep the human-readable action marker to aid logging/observability.
-    if (eventId) actions.push("marked_event_processed");
+    // Mark event processed for idempotency
+    if (eventId) {
+      try {
+        await markEventProcessed(db, eventId);
+        actions.push("marked_event_processed");
+      } catch (err) {
+        // ignore
+      }
+    }
 
     // Final success log summarizing the actions taken for this event (avoids revealing secrets)
-    // Prefer rcEvent.app_user_id first (covers event-shaped payloads). Fall back to other paths.
-    const loggedAppUserId =
-      rcEvent?.app_user_id ||
-      payload.app_user_id ||
-      payload.data?.app_user_id ||
-      payload.data?.subscriber?.app_user_id ||
-      payload.data?.subscriber?.original_app_user_id ||
-      "unknown";
-
     console.log(
-      `RevenueCat webhook processed: eventId=${eventId} appUserId=${loggedAppUserId} actions=${actions.join(";")}`
+      `RevenueCat webhook processed: eventId=${eventId} appUserId=${
+        payload.app_user_id ||
+        payload.data?.app_user_id ||
+        payload.data?.subscriber?.app_user_id ||
+        payload.data?.subscriber?.original_app_user_id ||
+        "unknown"
+      } actions=${actions.join(";")}`
     );
 
     return res.status(200).send("ok");
