@@ -131,6 +131,8 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
       return u;
     }
 
+    const reasons: string[] = []; // Collect reasons why updates may not happen
+
     // Handle consumable credits
     if (productId && PRODUCT_CREDIT_MAP[productId]) {
       const user = await findUserByAppUserId(appUserId);
@@ -147,6 +149,8 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
           productId,
           credits: PRODUCT_CREDIT_MAP[productId],
         });
+      } else {
+        reasons.push("User not found for consumable credit grant");
       }
     }
 
@@ -161,6 +165,7 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
       let user = await findUserByAppUserId(rcAppUserId);
       if (!user) {
         console.warn("User not found for subscription event");
+        reasons.push("User not found for subscription event");
         return res.status(200).send("ok");
       }
 
@@ -195,9 +200,24 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
         (rcEvent.entitlement_ids &&
           rcEvent.entitlement_ids.includes("RC-Mosaic-AI"));
 
-      const isPremiumNow = latestSub
-        ? latestSub.expires > Date.now()
-        : hasEntitlement;
+      if (!latestSub && !hasEntitlement) {
+        reasons.push("No active subscription found and entitlement not active");
+      }
+
+      let isPremiumNow =
+        hasEntitlement || (latestSub ? latestSub.expires > Date.now() : false);
+
+      if (!isPremiumNow) {
+        if (latestSub && latestSub.expires <= Date.now()) {
+          reasons.push(
+            "Subscription expired (sandbox testing may expire quickly)"
+          );
+        }
+        if (!hasEntitlement) {
+          reasons.push("Entitlement not active");
+        }
+      }
+
       const premiumExpiresAt = latestSub
         ? new Date(latestSub.expires)
         : user.premiumExpiresAt;
@@ -216,6 +236,10 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
       // Determine if we should grant credits
       if (user.revenuecatSubscriptionId !== subscriptionId) {
         updateOps.$inc = { storyListenCredits: 30 };
+      } else {
+        reasons.push(
+          "Credits not granted: subscriptionId matches existing user record"
+        );
       }
 
       // Event-specific overrides
@@ -223,39 +247,38 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
         case "CANCELLATION":
         case "EXPIRATION":
           updateOps.$set.isPremium = false;
-          console.log(
-            `Premium removed for user ${user._id} due to ${rcEvent.type}`
-          );
+          reasons.push(`Premium removed due to ${rcEvent.type}`);
           break;
         case "PRODUCT_CHANGE":
-          console.log(
-            `Product change for user ${user._id} to ${
-              rcEvent.new_product_id || latestSub?.product_id
-            }`
-          );
           updateOps.$set.revenuecatSubscriptionId =
             rcEvent.new_product_id || latestSub?.product_id;
+          updateOps.$set.isPremium = true;
+          reasons.push(
+            `Product changed to ${updateOps.$set.revenuecatSubscriptionId}`
+          );
           break;
         case "SUBSCRIPTION_PAUSED":
           updateOps.$set.isPaused = true;
-          console.log(`Subscription paused for user ${user._id}`);
+          reasons.push("Subscription paused");
           break;
         case "REFUND_REVERSED":
           updateOps.$set.isPremium = true;
-          console.log(
-            `Refund reversed, re-granting premium to user ${user._id}`
-          );
+          reasons.push("Refund reversed, premium re-granted");
           break;
         default:
-          console.log(
-            `Processing subscription event ${rcEvent.type} for user ${user._id}`
-          );
+          reasons.push(`Processing subscription event ${rcEvent.type}`);
           break;
       }
 
       await users.updateOne({ _id: user._id }, updateOps);
 
       console.log(`User ${user._id} updated:`, updateOps);
+      console.log(
+        `User ${user._id} update reasons:`,
+        reasons.length > 0
+          ? reasons.join("; ")
+          : "No issues, update applied normally"
+      );
 
       await FirebaseAnalytics.trackEvent("revenuecat_subscription_update", {
         appUserId,
@@ -263,6 +286,7 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
         eventType: rcEvent.type,
         creditsGranted: updateOps.$inc?.storyListenCredits || 0,
         isPremium: updateOps.$set.isPremium,
+        reasons,
       });
     }
 
