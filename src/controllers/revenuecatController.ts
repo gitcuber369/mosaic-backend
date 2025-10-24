@@ -3,21 +3,24 @@ import { Request, Response } from "express";
 import { getDb, getUsersCollection } from "../db";
 import FirebaseAnalytics from "../firebaseConfig";
 
-// Map RevenueCat product ids to credit amounts
+// Map RevenueCat product IDs to consumable credits
 const PRODUCT_CREDIT_MAP: Record<string, number> = {
   "com.mosaic.credits_10": 10,
+  // Add more consumable product IDs here if needed
 };
 
+// Idempotency: Mark an event as processed
 async function markEventProcessed(db: any, eventId: string) {
   const coll = db.collection("processedEvents");
   try {
     await coll.insertOne({ eventId, createdAt: new Date() });
     return true;
   } catch (err) {
-    return false; // likely duplicate
+    return false; // duplicate
   }
 }
 
+// Check if event was already processed
 async function hasEventBeenProcessed(db: any, eventId: string) {
   const coll = db.collection("processedEvents");
   const f = await coll.findOne({ eventId });
@@ -30,7 +33,7 @@ async function hasEventBeenProcessed(db: any, eventId: string) {
     const db = getDb();
     const coll = db.collection("processedEvents");
     await coll.createIndex({ eventId: 1 }, { unique: true });
-  } catch (err) {}
+  } catch {}
 })();
 
 // POST /api/revenuecat/webhook
@@ -38,6 +41,7 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
   try {
     const rawBody = req.body as Buffer | string;
 
+    // Verify basic auth header
     const expectedAuth = process.env.REVENUECAT_WEBHOOK_AUTH;
     const actualAuth = (req.headers.authorization ||
       req.headers.Authorization ||
@@ -48,6 +52,7 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
 
     if (!rawBody) return res.status(400).send("missing body");
 
+    // Verify signature if webhook secret is provided
     const signatureHeader =
       (req.headers["x-revenuecat-signature"] as string) ||
       (req.headers["revenuecat-signature"] as string) ||
@@ -70,6 +75,7 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
       }
     }
 
+    // Parse payload
     let payload: any;
     if (Buffer.isBuffer(rawBody))
       payload = JSON.parse(rawBody.toString("utf8"));
@@ -83,7 +89,6 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
       payload.request_id ||
       payload.delivery_id ||
       payload.data?.id;
-
     const db = getDb();
     if (eventId && (await hasEventBeenProcessed(db, eventId)))
       return res.status(200).send("ok");
@@ -117,9 +122,9 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
       return u;
     }
 
-    // Consumable handling
+    // Handle consumable credits
     if (productId && PRODUCT_CREDIT_MAP[productId]) {
-      let user = await findUserByAppUserId(appUserId);
+      const user = await findUserByAppUserId(appUserId);
       if (user) {
         await users.updateOne(
           { _id: user._id },
@@ -133,7 +138,7 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
       }
     }
 
-    // Subscription / entitlement handling
+    // Handle subscription and entitlement
     const subscriber =
       payload.data?.subscriber || payload.subscriber || payload.data;
     if (subscriber) {
@@ -171,7 +176,6 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
         }
       }
 
-      // Fallback: use entitlement if no subscriptions (especially in sandbox)
       const hasEntitlement =
         subscriber.entitlements?.["RC-Mosaic-AI"]?.is_active ||
         (rcEvent.entitlement_ids &&
@@ -189,32 +193,122 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
         isPremiumNow = true;
       }
 
-      // Grant 30 credits only if subscriptionId is new or missing
-      if (isPremiumNow) {
-        const incrementCredits =
-          subscriptionId && user.revenuecatSubscriptionId === subscriptionId
-            ? 0
-            : 30;
-        const update: any = {
-          isPremium: true,
-          premiumExpiresAt: premiumExpiresAt || user.premiumExpiresAt,
-        };
-        if (subscriptionId) update.revenuecatSubscriptionId = subscriptionId;
-        const updateOps: any = { $set: update };
-        if (incrementCredits > 0)
-          updateOps.$inc = { storyListenCredits: incrementCredits };
+      // Handle all event types
+      switch ((rcEvent.type || "").toUpperCase()) {
+        case "INITIAL_PURCHASE":
+        case "RENEWAL":
+        case "UNCANCELLATION":
+        case "SUBSCRIPTION_EXTENDED":
+        case "TEMPORARY_ENTITLEMENT_GRANT":
+        case "NON_RENEWING_PURCHASE":
+          {
+            const incrementCredits =
+              subscriptionId && user.revenuecatSubscriptionId === subscriptionId
+                ? 0
+                : 30;
+            const update: any = {
+              isPremium: true,
+              premiumExpiresAt: premiumExpiresAt || user.premiumExpiresAt,
+            };
+            if (subscriptionId)
+              update.revenuecatSubscriptionId = subscriptionId;
+            const updateOps: any = { $set: update };
+            if (incrementCredits > 0)
+              updateOps.$inc = { storyListenCredits: incrementCredits };
+            await users.updateOne({ _id: user._id }, updateOps);
+          }
+          break;
 
-        await users.updateOne({ _id: user._id }, updateOps);
-      } else {
-        await users.updateOne(
-          { _id: user._id },
-          { $set: { isPremium: false } }
-        );
+        case "CANCELLATION":
+          await users.updateOne(
+            { _id: user._id },
+            { $set: { isPremium: false } }
+          );
+          break;
+
+        case "PRODUCT_CHANGE":
+          {
+            // Optional: handle product upgrades/downgrades
+            if (
+              latestSub &&
+              latestSub.product_id !== user.revenuecatSubscriptionId
+            ) {
+              await users.updateOne(
+                { _id: user._id },
+                { $set: { revenuecatSubscriptionId: latestSub.product_id } }
+              );
+            }
+          }
+          break;
+
+        case "BILLING_ISSUE":
+          // Optional: mark billing problem flag
+          await users.updateOne(
+            { _id: user._id },
+            { $set: { billingIssue: true } }
+          );
+          break;
+
+        case "TRANSFER":
+          // Optional: handle merging/transferring user entitlements
+          console.log("TRANSFER event: handle if needed");
+          break;
+
+        case "SUBSCRIPTION_PAUSED":
+          await users.updateOne(
+            { _id: user._id },
+            { $set: { isPaused: true } }
+          );
+          break;
+
+        case "EXPIRATION":
+          await users.updateOne(
+            { _id: user._id },
+            { $set: { isPremium: false } }
+          );
+          break;
+
+        case "INVOICE_ISSUANCE":
+          // Optional: log or track invoice issued
+          console.log("Invoice issued for user", user._id);
+          break;
+
+        case "REFUND_REVERSED":
+          // Optional: re-grant credits if needed
+          await users.updateOne(
+            { _id: user._id },
+            { $set: { isPremium: true } }
+          );
+          break;
+
+        default:
+          // fallback: if subscription active or entitlement active
+          if (isPremiumNow) {
+            const incrementCredits =
+              subscriptionId && user.revenuecatSubscriptionId === subscriptionId
+                ? 0
+                : 30;
+            const update: any = {
+              isPremium: true,
+              premiumExpiresAt: premiumExpiresAt || user.premiumExpiresAt,
+            };
+            if (subscriptionId)
+              update.revenuecatSubscriptionId = subscriptionId;
+            const updateOps: any = { $set: update };
+            if (incrementCredits > 0)
+              updateOps.$inc = { storyListenCredits: incrementCredits };
+            await users.updateOne({ _id: user._id }, updateOps);
+          } else {
+            await users.updateOne(
+              { _id: user._id },
+              { $set: { isPremium: false } }
+            );
+          }
+          break;
       }
     }
 
     if (eventId) await markEventProcessed(db, eventId);
-
     return res.status(200).send("ok");
   } catch (err) {
     console.error("RevenueCat webhook error", err);
