@@ -312,6 +312,9 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
           // User uncancelled - subscription is active
           updateOps.$set.isPremium = true;
           updateOps.$set.isPaused = false;
+          if (shouldGrantCredits) {
+            updateOps.$set = { storyListenCredits: user?.tokens + 30 };
+          }
           reasons.push("Uncancellation - premium granted");
           break;
 
@@ -321,7 +324,7 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
           updateOps.$set.revenuecatSubscriptionId =
             rcEvent.new_product_id || latestSub?.product_id;
           if (shouldGrantCredits) {
-            updateOps.$set = { storyListenCredits: 30 };
+            updateOps.$set = { storyListenCredits: user?.tokens + 30 };
           }
           reasons.push(
             `Product changed to ${updateOps.$set.revenuecatSubscriptionId} - premium granted`
@@ -330,7 +333,9 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
 
         case "CANCELLATION":
           // User cancelled but subscription is still active until expiration
-          updateOps.$set.isPremium = isPremiumNow;
+          updateOps.$set.isPremium = false;
+          updateOps.$set.isCanceled = true;
+          updateOps.$set.isPaused = false;
           reasons.push(
             `Cancellation - isPremium set to ${isPremiumNow} based on expiration date`
           );
