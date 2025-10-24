@@ -158,25 +158,6 @@ export async function getUserByEmail(req: Request, res: Response) {
   }
 }
 
-// Return current user's minimal info (requires auth)
-export async function getCurrentUser(req: Request, res: Response) {
-  try {
-    const tokenPayload = (req as any).user || {};
-    const userId = tokenPayload.userId || tokenPayload.user_id || tokenPayload.user || null;
-    if (!userId) return res.status(400).json({ error: 'userId not in token' });
-
-    const users = getUsersCollection();
-    const user = await users.findOne({ _id: new ObjectId(userId) });
-    if (!user) return res.status(404).json({ error: 'User not found' });
-
-    // Return only minimal info (avoid leaking tokens etc.)
-    res.status(200).json({ _id: user._id.toString(), email: user.email, name: user.name });
-  } catch (err) {
-    console.error('getCurrentUser error', err);
-    res.status(500).json({ error: 'Failed to fetch current user', details: err });
-  }
-}
-
 export async function getUserByRevenuecatAppUserId(
   req: Request,
   res: Response
