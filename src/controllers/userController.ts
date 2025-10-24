@@ -158,6 +158,30 @@ export async function getUserByEmail(req: Request, res: Response) {
   }
 }
 
+export async function getUserByRevenuecatAppUserId(
+  req: Request,
+  res: Response
+) {
+  try {
+    const appUserId = req.query.appUserId as string;
+    if (!appUserId || typeof appUserId !== "string") {
+      return res.status(400).json({ error: "appUserId is required" });
+    }
+    const users = getUsersCollection();
+    // Accept both the canonical revenuecatAppUserId field and any legacy appUserId field
+    let user = await users.findOne({ revenuecatAppUserId: appUserId });
+    if (!user) user = await users.findOne({ appUserId: appUserId });
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    if (typeof user.storyListenCredits !== "number") user.storyListenCredits = 30;
+    res.status(200).json(user);
+  } catch (err) {
+    res
+      .status(500)
+      .json({ error: "Failed to fetch user by appUserId", details: err });
+  }
+}
+
 export async function upgradeUserToPremium(req: Request, res: Response) {
   try {
     const { email } = req.body;

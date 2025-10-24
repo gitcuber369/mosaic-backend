@@ -5,6 +5,7 @@ import {
   deductListenCreditForChapter,
   deleteUserAccount,
   getUserByEmail,
+  getUserByRevenuecatAppUserId,
   getUserListeningHistory,
   loginUser,
   monthlyResetCredits,
@@ -80,6 +81,9 @@ router.post("/", createUser);
  */
 // GET /api/users/by-email?email=... (protected)
 router.get("/by-email", getUserByEmail);
+
+// GET /api/users/by-revenuecat-app-user-id?appUserId=... (public)
+router.get("/by-revenuecat-app-user-id", getUserByRevenuecatAppUserId);
 
 /**
  * @swagger

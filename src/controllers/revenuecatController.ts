@@ -193,6 +193,19 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
         const creditsToGrant = PRODUCT_CREDIT_MAP[productId];
         // Try to find user by appUserId OR by email fallback
         let user = await findUserByAppUserId(appUserId);
+        // If we found the user via fallback (email or other) and the user record
+        // doesn't yet have the canonical revenuecatAppUserId, persist it now.
+        try {
+          if (user && appUserId && !user.revenuecatAppUserId) {
+            await users.updateOne(
+              { _id: user._id },
+              { $set: { revenuecatAppUserId: appUserId } }
+            );
+            actions.push("stored_revenuecatAppUserId_from_webhook");
+          }
+        } catch (err) {
+          console.warn("Failed to persist revenuecatAppUserId from webhook", err);
+        }
         if (user) {
           await users.updateOne(
             { _id: user._id },
@@ -228,6 +241,18 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
         subscriber?.original_app_user_id;
       if (rcAppUserId) {
         let user = await findUserByAppUserId(rcAppUserId);
+        // Persist revenuecatAppUserId if we matched the user by email or other fallback
+        try {
+          if (user && rcAppUserId && !user.revenuecatAppUserId) {
+            await users.updateOne(
+              { _id: user._id },
+              { $set: { revenuecatAppUserId: rcAppUserId } }
+            );
+            actions.push("stored_revenuecatAppUserId_from_webhook");
+          }
+        } catch (err) {
+          console.warn("Failed to persist revenuecatAppUserId from webhook", err);
+        }
         if (user) {
           // Look for subscriptions object and pick the subscription with the latest expiry
           let chosenSub: any = null;
