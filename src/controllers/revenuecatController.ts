@@ -334,7 +334,7 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
         case "CANCELLATION":
           // User cancelled but subscription is still active until expiration
           updateOps.$set.isPremium = false;
-          updateOps.$set.isCanceled = true;
+          updateOps.$set.isCancelled = true;
           updateOps.$set.isPaused = false;
           reasons.push(
             `Cancellation - isPremium set to ${isPremiumNow} based on expiration date`
