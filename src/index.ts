@@ -13,11 +13,11 @@ import {
   analyticsMiddleware,
   errorAnalyticsMiddleware,
 } from "./middleware/analytics";
+import appstoreRouter from "./routes/appstore";
 import elevenlabsRouter from "./routes/elevenlabs";
 import exampleRouter from "./routes/example";
 import geminiRouter from "./routes/gemini";
 import revenuecatRouter from "./routes/revenuecat";
-import appstoreRouter from "./routes/appstore";
 import storiesRouter from "./routes/stories";
 import stripeRouter from "./routes/stripe";
 import supportRouter from "./routes/support";
@@ -84,7 +84,7 @@ app.use("/api/elevenlabs", elevenlabsRouter);
 app.use("/api/support", supportRouter);
 app.use("/api/stripe", stripeRouter);
 app.use("/api/revenuecat", revenuecatRouter);
-app.use('/api/app-store', appstoreRouter);
+app.use("/api/app-store", appstoreRouter);
 
 // Serve Swagger UI
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(specs));
