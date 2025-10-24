@@ -126,12 +126,14 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
       if (u) return u;
       u = await users.findOne({ appUserId: appUserIdToFind });
       if (u) return u;
-      const email = payload?.data?.subscriber?.email?.value;
-      if (email) u = await users.findOne({ email });
+      const email = payload?.data?.subscriber?.email?.value || appUserIdToFind;
+      if (email && email.includes("@")) {
+        u = await users.findOne({ email });
+      }
       return u;
     }
 
-    const reasons: string[] = []; // Collect reasons why updates may not happen
+    const reasons: string[] = [];
 
     // Handle consumable credits
     if (productId && PRODUCT_CREDIT_MAP[productId]) {
@@ -154,18 +156,47 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
       }
     }
 
-    // Handle subscriptions / entitlements
+    // Handle subscription events - works with both nested subscriber object and direct event data
     const subscriber =
       payload.data?.subscriber || payload.subscriber || payload.data;
-    if (subscriber) {
+    const eventType = (rcEvent.type || "").toUpperCase();
+
+    // Check if this is a subscription-related event (even without full subscriber object)
+    const hasEntitlementData =
+      rcEvent.entitlement_ids?.includes("RC-Mosaic-AI") ||
+      subscriber?.entitlements?.["RC-Mosaic-AI"]?.is_active;
+
+    const hasExpirationDate =
+      rcEvent.expiration_at_ms || rcEvent.expires_date_ms;
+
+    const isSubscriptionEvent =
+      hasEntitlementData ||
+      hasExpirationDate ||
+      [
+        "INITIAL_PURCHASE",
+        "RENEWAL",
+        "NON_RENEWING_PURCHASE",
+        "PRODUCT_CHANGE",
+        "UNCANCELLATION",
+        "CANCELLATION",
+        "EXPIRATION",
+        "BILLING_ISSUE",
+        "SUBSCRIPTION_PAUSED",
+        "REFUND",
+        "REFUND_REVERSED",
+      ].includes(eventType);
+
+    if (isSubscriptionEvent) {
       const rcAppUserId =
         appUserId ||
         subscriber?.app_user_id ||
         subscriber?.original_app_user_id;
       let user = await findUserByAppUserId(rcAppUserId);
+
       if (!user) {
         console.warn("User not found for subscription event");
         reasons.push("User not found for subscription event");
+        if (eventId) await markEventProcessed(db, eventId);
         return res.status(200).send("ok");
       }
 
@@ -176,12 +207,15 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
         );
       }
 
-      const subscriptions = subscriber.subscriptions || {};
+      // Extract subscription data from either subscriber object or direct event data
       let latestSub: {
         id: string;
         product_id: string;
         expires: number;
       } | null = null;
+
+      // Try to get from subscriber.subscriptions first
+      const subscriptions = subscriber?.subscriptions || {};
       for (const key of Object.keys(subscriptions)) {
         const s = subscriptions[key];
         const expMs = s?.expires_date_ms || s?.expiration_date_ms;
@@ -195,28 +229,31 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
         }
       }
 
-      const hasEntitlement =
-        subscriber.entitlements?.["RC-Mosaic-AI"]?.is_active ||
-        (rcEvent.entitlement_ids &&
-          rcEvent.entitlement_ids.includes("RC-Mosaic-AI"));
+      // If no subscriber data, use event data directly
+      if (!latestSub && hasExpirationDate) {
+        const expirationMs = Number(
+          rcEvent.expiration_at_ms || rcEvent.expires_date_ms
+        );
+        latestSub = {
+          id:
+            rcEvent.original_transaction_id ||
+            rcEvent.transaction_id ||
+            rcEvent.id,
+          product_id: rcEvent.new_product_id || rcEvent.product_id || productId,
+          expires: expirationMs,
+        };
+        reasons.push("Using expiration data from event directly");
+      }
+
+      const hasEntitlement = hasEntitlementData;
 
       if (!latestSub && !hasEntitlement) {
-        reasons.push("No active subscription found and entitlement not active");
+        reasons.push("No subscription data found in event");
       }
 
+      // Calculate premium status from available data
       let isPremiumNow =
         hasEntitlement || (latestSub ? latestSub.expires > Date.now() : false);
-
-      if (!isPremiumNow) {
-        if (latestSub && latestSub.expires <= Date.now()) {
-          reasons.push(
-            "Subscription expired (sandbox testing may expire quickly)"
-          );
-        }
-        if (!hasEntitlement) {
-          reasons.push("Entitlement not active");
-        }
-      }
 
       const premiumExpiresAt = latestSub
         ? new Date(latestSub.expires)
@@ -224,61 +261,131 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
       const subscriptionId =
         latestSub?.id || rcEvent.transaction_id || rcEvent.id;
 
-      // Default update
+      // Initialize update operations
       const updateOps: any = {
         $set: {
-          isPremium: isPremiumNow,
-          premiumExpiresAt,
           revenuecatSubscriptionId: subscriptionId,
+          premiumExpiresAt,
         },
       };
 
       // Determine if we should grant credits
+      let shouldGrantCredits = false;
       if (user.revenuecatSubscriptionId !== subscriptionId) {
-        updateOps.$inc = { storyListenCredits: 30 };
+        shouldGrantCredits = true;
       } else {
         reasons.push(
           "Credits not granted: subscriptionId matches existing user record"
         );
       }
 
-      // Event-specific overrides
-      switch ((rcEvent.type || "").toUpperCase()) {
-        case "CANCELLATION":
-        case "EXPIRATION":
-          updateOps.$set.isPremium = false;
-          reasons.push(`Premium removed due to ${rcEvent.type}`);
+      // Event-specific handling
+      switch (eventType) {
+        case "INITIAL_PURCHASE":
+          updateOps.$set.isPremium = true;
+          updateOps.$set.isPaused = false;
+          if (shouldGrantCredits) {
+            updateOps.$inc = { storyListenCredits: 30 };
+          }
+          reasons.push("Initial purchase - premium granted");
           break;
+
+        case "RENEWAL":
+          updateOps.$set.isPremium = true;
+          updateOps.$set.isPaused = false;
+          if (shouldGrantCredits) {
+            updateOps.$inc = { storyListenCredits: 30 };
+          }
+          reasons.push("Renewal - premium granted");
+          break;
+
+        case "NON_RENEWING_PURCHASE":
+          updateOps.$set.isPremium = true;
+          updateOps.$set.isPaused = false;
+          if (shouldGrantCredits) {
+            updateOps.$inc = { storyListenCredits: 30 };
+          }
+          reasons.push("Non-renewing purchase - premium granted");
+          break;
+
+        case "UNCANCELLATION":
+          // User uncancelled - subscription is active
+          updateOps.$set.isPremium = true;
+          updateOps.$set.isPaused = false;
+          reasons.push("Uncancellation - premium granted");
+          break;
+
         case "PRODUCT_CHANGE":
+          updateOps.$set.isPremium = true;
+          updateOps.$set.isPaused = false;
           updateOps.$set.revenuecatSubscriptionId =
             rcEvent.new_product_id || latestSub?.product_id;
-          updateOps.$set.isPremium = true;
+          if (shouldGrantCredits) {
+            updateOps.$inc = { storyListenCredits: 30 };
+          }
           reasons.push(
-            `Product changed to ${updateOps.$set.revenuecatSubscriptionId}`
+            `Product changed to ${updateOps.$set.revenuecatSubscriptionId} - premium granted`
           );
           break;
-        case "SUBSCRIPTION_PAUSED":
-          updateOps.$set.isPaused = true;
-          reasons.push("Subscription paused");
+
+        case "CANCELLATION":
+          // User cancelled but subscription is still active until expiration
+          updateOps.$set.isPremium = isPremiumNow;
+          reasons.push(
+            `Cancellation - isPremium set to ${isPremiumNow} based on expiration date`
+          );
           break;
+
+        case "EXPIRATION":
+          updateOps.$set.isPremium = false;
+          updateOps.$set.isPaused = false;
+          reasons.push("Subscription expired - premium removed");
+          break;
+
+        case "SUBSCRIPTION_PAUSED":
+          updateOps.$set.isPremium = false;
+          updateOps.$set.isPaused = true;
+          reasons.push("Subscription paused - premium removed");
+          break;
+
+        case "BILLING_ISSUE":
+          updateOps.$set.isPremium = isPremiumNow;
+          reasons.push(
+            `Billing issue detected - isPremium set to ${isPremiumNow}`
+          );
+          break;
+
+        case "REFUND":
+          updateOps.$set.isPremium = false;
+          updateOps.$set.isPaused = false;
+          reasons.push("Refund issued - premium removed");
+          break;
+
         case "REFUND_REVERSED":
           updateOps.$set.isPremium = true;
-          reasons.push("Refund reversed, premium re-granted");
+          updateOps.$set.isPaused = false;
+          reasons.push("Refund reversed - premium re-granted");
           break;
+
         default:
-          reasons.push(`Processing subscription event ${rcEvent.type}`);
+          // For unknown events, trust the calculated data
+          updateOps.$set.isPremium = isPremiumNow;
+          if (shouldGrantCredits && isPremiumNow) {
+            updateOps.$inc = { storyListenCredits: 30 };
+          }
+          reasons.push(
+            `Event type '${eventType}' - isPremium set to ${isPremiumNow} based on available data`
+          );
           break;
       }
 
       await users.updateOne({ _id: user._id }, updateOps);
 
-      console.log(`User ${user._id} updated:`, updateOps);
       console.log(
-        `User ${user._id} update reasons:`,
-        reasons.length > 0
-          ? reasons.join("; ")
-          : "No issues, update applied normally"
+        `User ${user._id} updated:`,
+        JSON.stringify(updateOps, null, 2)
       );
+      console.log(`User ${user._id} update reasons:`, reasons.join("; "));
 
       await FirebaseAnalytics.trackEvent("revenuecat_subscription_update", {
         appUserId,
