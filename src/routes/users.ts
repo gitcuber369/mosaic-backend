@@ -11,6 +11,7 @@ import {
   monthlyResetCredits,
   saveRevenuecatAppUserId,
   upgradeUserToPremium,
+  getCurrentUser,
 } from "../controllers/userController";
 import { authenticateToken } from "../middleware/auth";
 
@@ -84,6 +85,9 @@ router.get("/by-email", getUserByEmail);
 
 // GET /api/users/by-revenuecat-app-user-id?appUserId=... (public)
 router.get("/by-revenuecat-app-user-id", getUserByRevenuecatAppUserId);
+
+// GET /api/users/me - return current user's id/email/name
+router.get("/me", authenticateToken, getCurrentUser);
 
 /**
  * @swagger

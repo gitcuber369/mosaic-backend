@@ -158,6 +158,25 @@ export async function getUserByEmail(req: Request, res: Response) {
   }
 }
 
+// Return current user's minimal info (requires auth)
+export async function getCurrentUser(req: Request, res: Response) {
+  try {
+    const tokenPayload = (req as any).user || {};
+    const userId = tokenPayload.userId || tokenPayload.user_id || tokenPayload.user || null;
+    if (!userId) return res.status(400).json({ error: 'userId not in token' });
+
+    const users = getUsersCollection();
+    const user = await users.findOne({ _id: new ObjectId(userId) });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    // Return only minimal info (avoid leaking tokens etc.)
+    res.status(200).json({ _id: user._id.toString(), email: user.email, name: user.name });
+  } catch (err) {
+    console.error('getCurrentUser error', err);
+    res.status(500).json({ error: 'Failed to fetch current user', details: err });
+  }
+}
+
 export async function getUserByRevenuecatAppUserId(
   req: Request,
   res: Response
@@ -173,7 +192,8 @@ export async function getUserByRevenuecatAppUserId(
     if (!user) user = await users.findOne({ appUserId: appUserId });
     if (!user) return res.status(404).json({ error: "User not found" });
 
-    if (typeof user.storyListenCredits !== "number") user.storyListenCredits = 30;
+    if (typeof user.storyListenCredits !== "number")
+      user.storyListenCredits = 30;
     res.status(200).json(user);
   } catch (err) {
     res
@@ -531,6 +551,27 @@ export async function saveRevenuecatAppUserId(req: Request, res: Response) {
 
     if (!appUserId) {
       return res.status(400).json({ error: "appUserId is required" });
+    }
+
+    // Prevent accidentally storing an email address as the canonical RevenueCat id.
+    // We expect the canonical id to be the MongoDB _id (24 hex chars). If the
+    // provided appUserId looks like an email address, reject and ask client to
+    // send the server-side _id instead.
+    const objectIdLike = /^[a-fA-F0-9]{24}$/.test(appUserId);
+    const looksLikeEmail =
+      typeof appUserId === "string" && appUserId.includes("@");
+    if (!objectIdLike) {
+      if (looksLikeEmail) {
+        return res.status(400).json({
+          error:
+            "Refusing to store an email address as revenuecatAppUserId. Please provide the server-side user _id (24 hex chars) to use as the RevenueCat appUserId.",
+        });
+      }
+      // If it's not an ObjectId-like string, accept but warn in logs (backwards compat)
+      console.warn(
+        "saveRevenuecatAppUserId: appUserId does not look like an ObjectId; proceeding but this may cause mapping issues",
+        appUserId
+      );
     }
 
     const users = getUsersCollection();
