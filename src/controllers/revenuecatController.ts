@@ -285,7 +285,7 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
           updateOps.$set.isPremium = true;
           updateOps.$set.isPaused = false;
           if (shouldGrantCredits) {
-            updateOps.$inc = { storyListenCredits: 30 };
+            updateOps.$set = { storyListenCredits: user?.tokens + 30 };
           }
           reasons.push("Initial purchase - premium granted");
           break;
@@ -294,7 +294,7 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
           updateOps.$set.isPremium = true;
           updateOps.$set.isPaused = false;
           if (shouldGrantCredits) {
-            updateOps.$inc = { storyListenCredits: 30 };
+            updateOps.$set = { storyListenCredits: user?.tokens + 30 };
           }
           reasons.push("Renewal - premium granted");
           break;
@@ -303,7 +303,7 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
           updateOps.$set.isPremium = true;
           updateOps.$set.isPaused = false;
           if (shouldGrantCredits) {
-            updateOps.$inc = { storyListenCredits: 30 };
+            updateOps.$set = { storyListenCredits: 30 };
           }
           reasons.push("Non-renewing purchase - premium granted");
           break;
@@ -321,7 +321,7 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
           updateOps.$set.revenuecatSubscriptionId =
             rcEvent.new_product_id || latestSub?.product_id;
           if (shouldGrantCredits) {
-            updateOps.$inc = { storyListenCredits: 30 };
+            updateOps.$set = { storyListenCredits: 30 };
           }
           reasons.push(
             `Product changed to ${updateOps.$set.revenuecatSubscriptionId} - premium granted`
