@@ -319,7 +319,7 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
           break;
 
         case "PRODUCT_CHANGE":
-          updateOps.$set.isPremium = true;
+          updateOps.$set.isPremium = false; // will be set correctly below
           updateOps.$set.isPaused = false;
           updateOps.$set.revenuecatSubscriptionId =
             rcEvent.new_product_id || latestSub?.product_id;
