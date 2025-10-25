@@ -303,7 +303,7 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
           updateOps.$set.isPremium = true;
           updateOps.$set.isPaused = false;
           if (shouldGrantCredits) {
-            updateOps.$set = { storyListenCredits: 30 };
+            updateOps.$inc = { storyListenCredits: 10 };
           }
           reasons.push("Non-renewing purchase - premium granted");
           break;
