@@ -302,19 +302,19 @@ export async function handleRevenuecatWebhook(req: Request, res: Response) {
         case "NON_RENEWING_PURCHASE":
           updateOps.$set.isPremium = true;
           updateOps.$set.isPaused = false;
-          if (productId && PRODUCT_CREDIT_MAP[productId]) {
-            await users.updateOne(
-              { _id: user._id },
-              {
-                $inc: {
-                  storyListenCredits: PRODUCT_CREDIT_MAP[productId],
-                },
-              }
-            );
-            reasons.push(
-              `Granted ${PRODUCT_CREDIT_MAP[productId]} credits for non-renewing purchase`
-            );
-          }
+          // if (productId && PRODUCT_CREDIT_MAP[productId]) {
+          //   await users.updateOne(
+          //     { _id: user._id },
+          //     {
+          //       $inc: {
+          //         storyListenCredits: PRODUCT_CREDIT_MAP[productId],
+          //       },
+          //     }
+          //   );
+          //   reasons.push(
+          //     `Granted ${PRODUCT_CREDIT_MAP[productId]} credits for non-renewing purchase`
+          //   );
+          // }
           reasons.push("Non-renewing purchase - premium granted");
           break;
 
