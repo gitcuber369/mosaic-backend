@@ -25,10 +25,10 @@ export async function createUser(req: Request, res: Response) {
     } = req.body;
 
     // For Apple login, allow creation with appleUserId and name (email may be missing on subsequent logins)
-    if (!name || !gender || !ageGroup || (!email && !appleUserId)) {
+    if (!name || !ageGroup || (!email && !appleUserId)) {
       return res.status(400).json({
         error:
-          "Missing required fields (need name, gender, ageGroup, and either email or appleUserId)",
+          "Missing required fields (need name, ageGroup, and either email or appleUserId)",
       });
     }
 
