@@ -342,7 +342,7 @@ export async function createStory(req: Request, res: Response) {
           { role: "user", content: prompt },
         ],
         max_tokens: 8000,
-        temperature: 0.5,
+        temperature: 0.9,
         top_p: 0.95,
         frequency_penalty: 0.3, // Reduce repetition
         presence_penalty: 0.2, // Encourage new topics
@@ -474,7 +474,7 @@ export async function createStory(req: Request, res: Response) {
         imageUrl = await new Promise((resolve, reject) => {
           const stream = cloudinary.uploader.upload(
             `data:image/png;base64,${imageBuffer.toString("base64")}`,
-            { resource_type: "image", format: "jpg", folder: "stories_images" },
+            { resource_type: "image", format: "png", folder: "stories_images" },
             (error, result) => {
               if (error) return reject(error);
               if (!result)
@@ -961,4 +961,4 @@ export async function rateStory(req: Request, res: Response) {
   }
 }
 
-// studentController
+// studentController.ts
