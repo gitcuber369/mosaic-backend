@@ -342,10 +342,7 @@ export async function createStory(req: Request, res: Response) {
           { role: "user", content: prompt },
         ],
         max_tokens: 8000,
-        temperature: 0.5,
-        top_p: 0.95,
-        frequency_penalty: 0.3, // Reduce repetition
-        presence_penalty: 0.2, // Encourage new topics
+        temperature: 0.1,
         response_format: { type: "json_object" },
       });
       if (
@@ -355,6 +352,8 @@ export async function createStory(req: Request, res: Response) {
         typeof completion.choices[0].message.content === "string"
       ) {
         let content = completion.choices[0].message.content.trim();
+
+        console.log("Openai Response:", content);
         // Try to extract JSON from the response
         let jsonStart = content.indexOf("{");
         let jsonEnd = content.lastIndexOf("}");
@@ -764,7 +763,7 @@ export async function generateChapter(req: Request, res: Response) {
           { role: "user", content: prompt },
         ],
         max_tokens: 8000,
-        temperature: 0.5,
+        temperature: 0.1,
       });
       if (
         completion.choices &&
