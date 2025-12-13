@@ -5,11 +5,9 @@ import {
   deductListenCreditForChapter,
   deleteUserAccount,
   getUserByEmail,
-  getUserByRevenuecatAppUserId,
   getUserListeningHistory,
   loginUser,
   monthlyResetCredits,
-  saveRevenuecatAppUserId,
   upgradeUserToPremium,
 } from "../controllers/userController";
 import { authenticateToken } from "../middleware/auth";
@@ -83,7 +81,6 @@ router.post("/", createUser);
 router.get("/by-email", getUserByEmail);
 
 // GET /api/users/by-revenuecat-app-user-id?appUserId=... (public)
-router.get("/by-revenuecat-app-user-id", getUserByRevenuecatAppUserId);
 
 /**
  * @swagger
@@ -220,7 +217,6 @@ router.post("/monthly-reset", authenticateToken, monthlyResetCredits);
 router.post("/delete-account", authenticateToken, deleteUserAccount);
 
 // Public endpoint: save RevenueCat appUserId and optional name/attributes for webhook mapping
-router.post("/revenuecat-app-user-id", saveRevenuecatAppUserId);
 
 /**
  * @swagger

@@ -342,7 +342,7 @@ export async function createStory(req: Request, res: Response) {
           { role: "user", content: prompt },
         ],
         max_tokens: 8000,
-        temperature: 0.9,
+        temperature: 0.5,
         top_p: 0.95,
         frequency_penalty: 0.3, // Reduce repetition
         presence_penalty: 0.2, // Encourage new topics
