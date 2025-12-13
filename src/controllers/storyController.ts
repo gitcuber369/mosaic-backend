@@ -755,7 +755,7 @@ export async function generateChapter(req: Request, res: Response) {
     let chapterDescription = "";
     try {
       const completion = await openai.chat.completions.create({
-        model: "chatgpt-4o-latest",
+        model: "gpt-4o",
         messages: [
           {
             role: "system",
@@ -764,7 +764,7 @@ export async function generateChapter(req: Request, res: Response) {
           { role: "user", content: prompt },
         ],
         max_tokens: 8000,
-        temperature: 0.8,
+        temperature: 0.5,
       });
       if (
         completion.choices &&
