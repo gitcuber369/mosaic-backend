@@ -422,15 +422,7 @@ export async function createStory(req: Request, res: Response) {
 
       // Enhanced image prompt adapted from Python code
       const baseImagePrompt = "Generate image for a children's story. ";
-      const stylePrompt =
-        "Style: A highly detailed 3D illustration in a pixar like dreamy, whimsical, magical style. " +
-        "Use cinematic lighting with warm tones, glowing highlights, soft shadows, and painterly textures. " +
-        "Maintain stylized 3D proportions, soft sculpting, and a fairytale like composition throughout, " +
-        "ensuring the background feels rich and diverse without repetitive elements. " +
-        "with charming expressions; cozy, soft colors; child-safe; original characters only; " +
-        "no text or lettering in the image; inviting, centered composition. " +
-        "While creating any character, esp. human characters, avoid any look or costume that is specific " +
-        "to a particular ethnicity or race unless the scene description explicitly mentions it.";
+      const stylePrompt = "Style: A high-quality 3D digital illustration with soft-sculpted proportions. Use context-aware lighting that matches the scene description. Maintain a fairytale composition with painterly textures and charming expressions. Keep the image cozy, child-safe, and centered. No text or lettering. Use original characters with neutral, non-specific clothing unless the story specifies otherwise.";
 
       let finalImagePrompt = baseImagePrompt + stylePrompt;
 
